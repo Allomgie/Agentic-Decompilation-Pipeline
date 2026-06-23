@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>IDO Agent Pipeline &mdash; Technische README</title>
+<title>Zwei-Phasen-Pipeline &mdash; Technische README (v2)</title>
 <style>
   :root{
     --bg:#0d1117; --panel:#161b22; --panel2:#1c2230; --border:#30363d;
@@ -20,7 +20,6 @@
   a{color:var(--accent);text-decoration:none}
   a:hover{text-decoration:underline}
   .layout{display:grid;grid-template-columns:300px 1fr;max-width:1440px;margin:0 auto}
-  /* ---- sidebar / TOC ---- */
   nav.toc{position:sticky;top:0;align-self:start;height:100vh;overflow-y:auto;
     padding:28px 18px 60px;border-right:1px solid var(--border);background:var(--panel)}
   nav.toc h2{font-size:13px;text-transform:uppercase;letter-spacing:.12em;
@@ -32,11 +31,10 @@
   nav.toc a:hover{background:var(--panel2);color:var(--fg);text-decoration:none}
   nav.toc .sub{padding-left:18px;font-size:13px}
   nav.toc .badge{font:600 11px var(--mono);color:var(--accent2)}
-  /* ---- main ---- */
   main{padding:42px 56px 120px;min-width:0}
   header.hero{border-bottom:1px solid var(--border);padding-bottom:28px;margin-bottom:8px}
   header.hero h1{font-size:31px;margin:0 0 6px;letter-spacing:-.01em}
-  header.hero .tag{color:var(--muted);font-size:16px;max-width:760px}
+  header.hero .tag{color:var(--muted);font-size:16px;max-width:780px}
   header.hero .pills{margin-top:16px;display:flex;gap:8px;flex-wrap:wrap}
   .pill{font:600 12px var(--mono);background:var(--panel2);border:1px solid var(--border);
     color:var(--accent2);padding:3px 10px;border-radius:999px}
@@ -63,7 +61,6 @@
   .ok{color:var(--good);font-weight:600}
   .no{color:var(--bad);font-weight:600}
   .cyan{color:#56d4dd;font-weight:600}
-  /* ---- callouts ---- */
   .box{border:1px solid var(--border);border-left-width:4px;border-radius:8px;
     padding:14px 18px;margin:18px 0;background:var(--panel)}
   .box .lab{font:700 12px var(--mono);text-transform:uppercase;letter-spacing:.08em;
@@ -78,13 +75,13 @@
   kbd{font:600 12px var(--mono);background:var(--panel2);border:1px solid var(--border);
     border-bottom-width:2px;border-radius:5px;padding:1px 6px}
   hr{border:none;border-top:1px solid var(--border);margin:34px 0}
-  /* flow diagram */
   .flow{display:flex;flex-direction:column;gap:0;margin:18px 0;font-size:14px}
   .flow .step{display:flex;gap:14px;align-items:flex-start}
   .flow .dot{flex:0 0 34px;height:34px;border-radius:50%;background:var(--panel2);
     border:1px solid var(--accent);color:var(--accent);display:flex;align-items:center;
     justify-content:center;font:700 14px var(--mono)}
   .flow .dot.g{border-color:var(--accent2);color:var(--accent2)}
+  .flow .dot.c{border-color:#56d4dd;color:#56d4dd}
   .flow .body{padding:4px 0 22px}
   .flow .conn{flex:0 0 34px;display:flex;justify-content:center}
   .flow .conn::before{content:"";width:2px;height:22px;background:var(--border);
@@ -99,7 +96,16 @@
   .legend{display:flex;gap:18px;flex-wrap:wrap;margin:10px 0;font-size:13.5px}
   .legend span{display:inline-flex;align-items:center;gap:6px}
   .swatch{width:12px;height:12px;border-radius:3px;display:inline-block}
-  sup.fn{color:var(--accent);font-size:.7em}
+  .metric{display:flex;gap:6px;flex-wrap:wrap;font-family:var(--mono);font-size:13px;margin:14px 0}
+  .metric .cell{border:1px solid var(--border);border-radius:7px;padding:8px 12px;background:var(--panel2);
+    text-align:center;min-width:74px}
+  .metric .cell b{display:block;color:var(--accent2);font-size:15px}
+  .metric .cell span{color:var(--muted);font-size:11px}
+  .metric .arrow{align-self:center;color:var(--muted)}
+  .stat{display:flex;gap:14px;flex-wrap:wrap;margin:14px 0}
+  .stat .s{border:1px solid var(--border);border-radius:9px;padding:12px 18px;background:var(--panel)}
+  .stat .s b{display:block;font-size:24px;color:var(--accent2)}
+  .stat .s span{color:var(--muted);font-size:13px}
 </style>
 </head>
 <body>
@@ -109,39 +115,44 @@
   <h2>Inhalt</h2>
   <ol>
     <li><a href="#tldr">0&nbsp;&middot;&nbsp;TL;DR</a></li>
-    <li><a href="#agentic">&#9733;&nbsp;&middot;&nbsp;Agentic-AI auf einen Blick <span class="badge">Kern</span></a></li>
-    <li><a href="#problem">1&nbsp;&middot;&nbsp;Problem &amp; Kontext</a></li>
-    <li><a href="#architektur">2&nbsp;&middot;&nbsp;Architektur</a></li>
-    <li><a href="#match">3&nbsp;&middot;&nbsp;Das Match-Kriterium</a></li>
-    <li><a href="#wrapper0">4&nbsp;&middot;&nbsp;0_wrapper <span class="badge">erprobt</span></a></li>
-    <li><a href="#phasen" class="sub">4.1&nbsp;Phasen 0/A/B-C</a></li>
-    <li><a href="#modi" class="sub">4.2&nbsp;Eskalations-Modi</a></li>
-    <li><a href="#fahrplan" class="sub">4.3&nbsp;Kontext-Fahrplan</a></li>
-    <li><a href="#noai" class="sub">4.4&nbsp;No-AI Cluster-Scan</a></li>
-    <li><a href="#modelle" class="sub">4.5&nbsp;KI-Modelle &amp; Kosten</a></li>
-    <li><a href="#wrapper1">5&nbsp;&middot;&nbsp;1_wrapper_mother</a></li>
-    <li><a href="#wissen">6&nbsp;&middot;&nbsp;Wissensbasis</a></li>
-    <li><a href="#module">7&nbsp;&middot;&nbsp;Modul-Referenz</a></li>
-    <li><a href="#usage">8&nbsp;&middot;&nbsp;Benutzung</a></li>
-    <li><a href="#layout">9&nbsp;&middot;&nbsp;Verzeichnis-Layout</a></li>
-    <li><a href="#stack">10&nbsp;&middot;&nbsp;Tech-Stack</a></li>
-    <li><a href="#glossar">11&nbsp;&middot;&nbsp;Glossar</a></li>
+    <li><a href="#research">&#9733;&nbsp;&middot;&nbsp;Forschung &amp; Evaluation <span class="badge">Kern</span></a></li>
+    <li><a href="#pivot">1&nbsp;&middot;&nbsp;Der Architektur-Pivot</a></li>
+    <li><a href="#metrik">2&nbsp;&middot;&nbsp;Die Prioritäts-Metrik</a></li>
+    <li><a href="#architektur">3&nbsp;&middot;&nbsp;Zwei-Phasen-Architektur</a></li>
+    <li><a href="#phase1">4&nbsp;&middot;&nbsp;Phase 1 &mdash; Determinismus</a></li>
+    <li><a href="#phase1-vorflug" class="sub">4.1&nbsp;Vorflug 0b/0/0c</a></li>
+    <li><a href="#phase1-routing" class="sub">4.2&nbsp;Symptom-Routing</a></li>
+    <li><a href="#phase1-accept" class="sub">4.3&nbsp;Akzeptanz-Regel</a></li>
+    <li><a href="#phase2">5&nbsp;&middot;&nbsp;Phase 2 &mdash; Agentic Tooling</a></li>
+    <li><a href="#phase2-engine" class="sub">5.1&nbsp;Generischer Engine</a></li>
+    <li><a href="#phase2-domains" class="sub">5.2&nbsp;Drei Domänen-Stufen</a></li>
+    <li><a href="#phase2-cascade" class="sub">5.3&nbsp;Kaskade &amp; Routing</a></li>
+    <li><a href="#phase2-term" class="sub">5.4&nbsp;Turns &amp; Terminierung</a></li>
+    <li><a href="#phase2-tools" class="sub">5.5&nbsp;Werkzeuge</a></li>
+    <li><a href="#betrieb">6&nbsp;&middot;&nbsp;Betrieb &amp; Skalierung</a></li>
+    <li><a href="#gelernt">7&nbsp;&middot;&nbsp;Gelernt aus v1</a></li>
+    <li><a href="#module">8&nbsp;&middot;&nbsp;Modul-Referenz</a></li>
+    <li><a href="#usage">9&nbsp;&middot;&nbsp;Benutzung</a></li>
+    <li><a href="#layout">10&nbsp;&middot;&nbsp;Verzeichnis-Layout</a></li>
+    <li><a href="#stack">11&nbsp;&middot;&nbsp;Tech-Stack</a></li>
+    <li><a href="#glossar">12&nbsp;&middot;&nbsp;Glossar</a></li>
   </ol>
 </nav>
 
 <main>
 <header class="hero">
-  <h1>IDO Agent Pipeline</h1>
-  <div class="tag">Eine agentische Pipeline, die handgeschriebene und maschinell
-    erzeugte C-Entw&uuml;rfe automatisiert auf einen <em>byte-exakten</em> Match gegen
-    echte N64-MIPS-Assembly treibt &mdash; mit deterministischer Reparatur, einem
-    lokalen LLM, einem Permuter und einer selbst aufgebauten &Auml;hnlichkeits-Wissensbasis.</div>
+  <h1>Zwei-Phasen-Pipeline <span class="muted" style="font-size:18px">&mdash; v2</span></h1>
+  <div class="tag">Eine entkoppelte Pipeline, die handgeschriebene und maschinell erzeugte
+    C-Entwürfe automatisiert auf einen <em>byte-exakten</em> Match gegen N64-MIPS-Assembly
+    treibt: <b>Phase&nbsp;1</b> erschöpft deterministische, symptom-geroutete Reparatur-Experten,
+    <b>Phase&nbsp;2</b> schließt den Rest mit einem <b>domänenabhängigen agentischen LLM-Werkzeug</b>
+    in drei Stufen &mdash; bewertet über eine mehrstufige, reproduzierbare Prioritäts-Metrik.</div>
   <div class="pills">
     <span class="pill">IDO 5.3 cc</span>
     <span class="pill">MIPS / -O2 -G0</span>
-    <span class="pill">Qwen3 / Gemma4 (vLLM)</span>
-    <span class="pill">m2c</span>
-    <span class="pill">decomp-permuter</span>
+    <span class="pill">Qwen3.6-35B-A3B (vLLM/FP8)</span>
+    <span class="pill">Agentic Tooling</span>
+    <span class="pill">m2c · decomp-permuter</span>
     <span class="pill">WSL / Python 3.12</span>
     <span class="pill">Banjo-Tooie decomp</span>
   </div>
@@ -150,674 +161,638 @@
 <!-- ===================================================== 0 -->
 <section id="tldr">
 <h2 class="sec"><span class="n">0</span>TL;DR</h2>
-<p class="lead">Das Ziel der Banjo-Tooie-Dekompilierung ist, f&uuml;r jede Funktion C-Code
-zu finden, den der originale <b>IDO-5.3-Compiler</b> in <b>exakt dieselben Bytes</b>
-&uuml;bersetzt wie das Spiel-ROM. Diese Pipeline automatisiert genau diese Suche.</p>
+<p class="lead">Ziel ist, für jede Funktion C-Code zu finden, den der originale
+<b>IDO-5.3-Compiler</b> in <b>exakt dieselben Bytes</b> übersetzt wie das Spiel-ROM. Diese
+Pipeline ist die <b>zweite Generation</b> einer fortlaufenden Forschungsarbeit, in der
+verschiedene Decompilation-Pipelines systematisch gebaut, <em>gemessen</em> und
+<em>verglichen</em> werden.</p>
 
-<p>Sie besteht aus <b>zwei eigenst&auml;ndigen Wrappern</b>, die sich eine gemeinsame
-Modul-Bibliothek (Compiler-Treiber, Match-Bewertung, LLM-Schnittstelle, Permuter,
-Wissensbasis) teilen:</p>
+<p>Die zentrale Erkenntnis aus der ersten Generation
+(<a href="Pipeline_README.html">v1-README</a>): der deterministische und der agentische
+Reparatur-Zweig <b>bremsten sich gegenseitig</b>, wenn sie sich in <em>einer</em>
+zeitbegrenzten Schleife um dasselbe Budget stritten. v2 <b>entkoppelt</b> beide:</p>
 
 <div class="grid2">
   <div class="box key">
-    <span class="lab">0_wrapper.py &mdash; Hauptpipeline</span>
-    Die <b>erprobte</b> Produktions-Pipeline f&uuml;r normale Funktionen. Nimmt einen
-    C-Entwurf, repariert ihn deterministisch + per KI bis er kompiliert, und
-    minimiert dann iterativ den ASM-Diff zum Ziel, bis 100&nbsp;% Bytes stimmen.
-    L&auml;uft &uuml;ber tausende Funktionen parallel.
+    <span class="lab">Phase 1 &mdash; Deterministik (ohne KI, ohne Frist)</span>
+    Ein <b>Experten-Ping-Pong</b>: pro Funktion wird der ASM-Diff klassifiziert und an
+    <b>symptom-spezialisierte deterministische Experten</b> geroutet (Immediate, Stack-Frame,
+    Missing-Block, Reorder, &hellip;). Bit-identisch reproduzierbar, läuft erschöpfend
+    über alle Funktionen &mdash; <b>0 Tokens</b>. Liefert die Restmenge der offenen Funktionen.
   </div>
   <div class="box info">
-    <span class="lab">1_wrapper_mother.py &mdash; Mutter-Wrapper</span>
-    Spezial-Pipeline f&uuml;r <b>gro&szlig;e Funktionen</b>. Die Hauptpipeline liefert ihre
-    besten Ergebnisse auf kleinen Funktionen; gro&szlig;e &bdquo;M&uuml;tter&ldquo; werden hier
-    daher <b>kontextbewusst in kleinere H&auml;ppchen (&bdquo;Arme&ldquo;) serviert</b>.
-    Baut auf dem <a href="Splitter_README.html">Alt-Splitter</a> auf: kompiliert
-    <b>im Mutter-Kontext (PIC)</b> und matcht Arm f&uuml;r Arm front-to-back auf byte-exakt.
+    <span class="lab">Phase 2 &mdash; Agentic Tooling (mit Pod, volle Zeit)</span>
+    Jede offene Funktion durchläuft eine <b>Kaskade</b>. Der ASM-Diff wird in
+    <b>Fix-Domänen</b> zerlegt; ein generischer LLM-Agent schließt sie in <b>drei
+    domänenabhängigen Stufen</b> (Struktur → Logik → Logik+Struktur), jede mit voller Zeit,
+    dazwischen ein deterministischer Aufräum-Pass.
   </div>
 </div>
 
 <div class="box key">
-  <span class="lab">Was diese Pipeline besonders macht</span>
+  <span class="lab">Was diese Generation auszeichnet</span>
   <ul style="margin:6px 0">
-    <li><b>Wasserdichtes Match-Kriterium:</b> Vergleich zweier unrelocierter
-        <code>.o</code>-Dateien (Hex + Relocation-Symbol/Typ) statt naivem .s-Textvergleich.</li>
-    <li><b>Deterministik vor KI:</b> Auto-Fixes, Cluster-Transplantate und ein
-        Permuter l&ouml;sen viele F&auml;lle mit <b>0 KI-Tokens</b>.</li>
-    <li><b>Selbstlernend:</b> jeder Perfect Match speist eine &Auml;hnlichkeits-DB
-        (14&nbsp;641 Eintr&auml;ge) und ein Pattern-Cheatsheet, die k&uuml;nftige
-        &Uuml;bersetzungen leiten.</li>
-    <li><b>Adaptive Eskalation:</b> oneshot &rarr; thinking &rarr; best-of-N-Batch,
-        gesteuert durch echten Match-Fortschritt, nicht durch feste Budgets.</li>
+    <li><b>Entkopplung statt Pflaster:</b> jeder Zweig läuft in seinem natürlichen Regime &mdash;
+        Determinismus erschöpfend &amp; fristlos, der Agent mit voller Zeit pro Domäne.</li>
+    <li><b>Domänenbewusstes agentisches Werkzeug:</b> derselbe Engine wird pro Aufruf auf
+        <em>eine</em> Fehler-Domäne fokussiert und für die anderen bewusst „blind" gehalten.</li>
+    <li><b>Mehrstufige, lexikografische Metrik:</b> Fortschritt wird nicht binär (gelöst/offen),
+        sondern als <b>7-Tupel nach Symptom-Schwere</b> geordnet &mdash; ein objektives,
+        reproduzierbares Reward-Signal (<a href="#metrik">§2</a>).</li>
+    <li><b>Manuell komponierbar &amp; resumebar:</b> jede Phase/Stufe ist einzeln aufrufbar,
+        der Zustand wird über Platte verkettet &mdash; ideal für kontrollierte Mess-Läufe.</li>
   </ul>
 </div>
 </section>
 
 <!-- ===================================================== STAR -->
-<section id="agentic">
-<h2 class="sec"><span class="n">&#9733;</span>Agentic-AI auf einen Blick</h2>
-<p class="lead">Diese Pipeline ist ein <b>autonomer Agent mit verifizierbarem Ziel</b>: er
-arbeitet ein hartes, objektiv messbares Erfolgskriterium (byte-exakter Match) in einer
-geschlossenen Wahrnehmungs-/Handlungs-Schleife ab &mdash; und setzt das LLM gezielt dort
-ein, wo es einen Vorteil bringt, statt blind zu prompten.</p>
+<section id="research">
+<h2 class="sec"><span class="n">&#9733;</span>Forschung, Agentic-AI &amp; Evaluation auf einen Blick</h2>
+<p class="lead">Diese Pipeline ist zugleich ein <b>autonomer Agent mit verifizierbarem Ziel</b>
+und der Gegenstand eines <b>methodischen Benchmarking-Experiments</b>: unterschiedliche
+Pipeline-Designs werden gegen ein hartes, objektiv messbares Erfolgskriterium
+(byte-exakter Match) evaluiert und gegeneinander verglichen.</p>
 
 <table>
-  <thead><tr><th>Agentic-Konzept</th><th>Umsetzung in dieser Pipeline</th></tr></thead>
+  <thead><tr><th>Konzept</th><th>Umsetzung in dieser Pipeline</th></tr></thead>
   <tbody>
-    <tr><td><b>Closed-Loop-Agent (sense&rarr;plan&rarr;act)</b></td>
-        <td>kompilieren &rarr; mit Ziel vergleichen &rarr; JSON-Diff interpretieren &rarr;
-        C gezielt &auml;ndern &rarr; wiederholen, bis 100&nbsp;% Bytes stimmen
-        (<a href="#phasen">&sect;4.1</a>).</td></tr>
-    <tr><td><b>Verifizierbares Reward-Signal</b></td>
-        <td>byte-exakter <code>.o</code>-vs-<code>.o</code>-Vergleich statt
-        &bdquo;klingt plausibel&ldquo; &mdash; jeder Schritt ist objektiv bewertbar
-        (<a href="#match">&sect;3</a>).</td></tr>
-    <tr><td><b>Werkzeuggebrauch (tool use)</b></td>
-        <td>der Agent steuert echte Tools: IDO-Compiler, <code>objdump</code>, m2c,
-        Hill-Climbing-Permuter, &Auml;hnlichkeits-Suche.</td></tr>
-    <tr><td><b>Adaptive Eskalation &amp; Budget-Steuerung</b></td>
-        <td>oneshot &rarr; thinking &rarr; best-of-N-Batch, ausgel&ouml;st durch echten
-        Fortschritt, nicht durch feste Budgets (<a href="#modi">&sect;4.2</a>).</td></tr>
+    <tr><td><b>Verifizierbares, reproduzierbares Reward-Signal</b></td>
+        <td>byte-exakter <code>.o</code>-vs-<code>.o</code>-Vergleich (Hex + Relocation
+        Symbol/Typ) statt „klingt plausibel" &mdash; deterministisch, cache-bar, ohne
+        menschliches Urteil (<a href="#metrik">§2</a>).</td></tr>
+    <tr><td><b>Mehrdimensionale Bewertungsmetrik</b></td>
+        <td>statt einer Skalarzahl ein <b>lexikografisches 7-Tupel</b>, das Fortschritt nach
+        Symptom-Schwere ordnet (fehlende Instruktionen → Root-Logik → Struktur → Datenref →
+        Allokation → Tier → Byte-Distanz) &mdash; macht „besser geworden" objektiv
+        entscheidbar.</td></tr>
+    <tr><td><b>Closed-Loop-Agent (sense → plan → act)</b></td>
+        <td>kompilieren → mit Ziel vergleichen → JSON-Diff interpretieren → C gezielt ändern →
+        wiederholen, bis das Tupel nicht weiter sinkt.</td></tr>
+    <tr><td><b>Domänen-fokussiertes Tool-Use</b></td>
+        <td>derselbe Engine wird pro Aufruf auf <em>eine</em> Fix-Domäne fokussiert; er steuert
+        echte Tools: IDO-Compiler, <code>objdump</code>, m2c, Permuter, read-only Header-Suche
+        (<a href="#phase2-tools">§5.5</a>).</td></tr>
     <tr><td><b>Determinismus vor LLM</b></td>
-        <td>Auto-Fixes, Cluster-Transplantate und Permuter l&ouml;sen viele F&auml;lle mit
-        <b>0 Tokens</b>; das Modell l&auml;uft nur, wo es n&ouml;tig ist
-        (<a href="#noai">&sect;4.4</a>).</td></tr>
-    <tr><td><b>Lernen w&auml;hrend der Ausf&uuml;hrung (RAG / Memory)</b></td>
-        <td>jeder Erfolg speist &Auml;hnlichkeits-DB + Cheatsheet &rarr; folgende Funktionen
-        starten besser, bis die <em>kritische Masse</em> erreicht ist
-        (<a href="#wissen">&sect;6</a>).</td></tr>
-    <tr><td><b>Aufgaben-Zerlegung (task decomposition)</b></td>
-        <td>der Mutter-Wrapper zerlegt gro&szlig;e Funktionen kontextbewusst in kleine
-        Arme und matcht sie einzeln front-to-back (<a href="#wrapper1">&sect;5</a>).</td></tr>
-    <tr><td><b>Kontext-Engineering</b></td>
-        <td>der Kontext-Fahrplan staffelt, <em>was</em> das Modell sieht; Reasoning wird
-        nie in die n&auml;chste Nachricht zur&uuml;ckgespielt (<a href="#fahrplan">&sect;4.3</a>).</td></tr>
-    <tr><td><b>Persistenz &amp; Wiederaufnahme</b></td>
-        <td>Zustand pro Funktion &uuml;berlebt Neustarts; <code>--resume</code> setzt
-        L&auml;ufe fort (<a href="#module">&sect;7</a>).</td></tr>
-    <tr><td><b>Modell-Portabilit&auml;t &amp; Kosten</b></td>
-        <td>dasselbe Agenten-Verhalten l&auml;uft auf lokalem GPU-LLM <em>oder</em> Cloud-API &mdash;
-        bewusst zur Kostenkontrolle (<a href="#modelle">&sect;4.5</a>).</td></tr>
+        <td>Phase 1 löst, was mechanisch lösbar ist, mit <b>0 Tokens</b>; das Modell läuft nur
+        auf dem echten Rest (<a href="#phase1">§4</a>).</td></tr>
+    <tr><td><b>Adaptive Eskalation &amp; Selbst-Terminierung</b></td>
+        <td>Stufen eskalieren nur bei nachgewiesenem Fortschritt; der Agent bricht nach
+        2× Stillstand selbst ab, Compile-Fehler separat gezählt
+        (<a href="#phase2-term">§5.4</a>).</td></tr>
+    <tr><td><b>Methodisches Benchmarking von Varianten</b></td>
+        <td>jede Phase/Stufe ist isoliert messbar; Läufe sind über Platte resumebar und
+        per <code>--skip</code> reproduzierbar fortsetzbar &mdash; gebaut, um Pipeline-Designs
+        sauber gegeneinander zu evaluieren (<a href="#betrieb">§6</a>).</td></tr>
+    <tr><td><b>Transparente Dokumentation der Modell-/Hardware-Wahl</b></td>
+        <td>FP8 vs. NVFP4 vs. BF16 und Pod-Durchsatz wurden gemessen und dokumentiert, nicht
+        geraten (<a href="#betrieb">§6</a>).</td></tr>
   </tbody>
 </table>
 
 <div class="box key">
-  <span class="lab">Der entscheidende Effekt</span>
-  Die Pipeline wird <b>w&auml;hrend sie l&auml;uft besser</b>: gel&ouml;ste Funktionen werden
-  zu Referenzen f&uuml;r die n&auml;chsten. Ab einer kritischen Masse l&ouml;sen sich
-  &auml;hnliche Funktionen nahezu von selbst &mdash; ein selbstverst&auml;rkender
-  Agenten-Kreislauf statt eines statischen Skripts.
+  <span class="lab">Die Forschungsfrage</span>
+  Wie verteilt man die Arbeit zwischen <b>deterministischer Reparatur</b> und einem
+  <b>LLM-Agenten</b> optimal &mdash; und wie <em>misst</em> man das fair? v2 ist die Antwort
+  „Entkopplung + domänenbewusstes Tooling", bewertet über eine Metrik, die mehr Auflösung
+  hat als der bloße Match-Zähler.
 </div>
 </section>
 
 <!-- ===================================================== 1 -->
-<section id="problem">
-<h2 class="sec"><span class="n">1</span>Problem &amp; Kontext</h2>
-<p>Eine <b>Dekompilierung</b> (decomp) rekonstruiert den C-Quelltext eines kompilierten
-Spiels so, dass er <em>bitgenau</em> dieselbe Binary erzeugt. F&uuml;r N64-Spiele wie
-Banjo-Tooie hei&szlig;t das: der historische <b>SGI IDO 5.3 <code>cc</code></b> muss aus
-dem Kandidaten-C exakt die Bytes des ROMs produzieren. Erst dann gilt eine Funktion als
-&bdquo;matched&ldquo;.</p>
+<section id="pivot">
+<h2 class="sec"><span class="n">1</span>Der Architektur-Pivot</h2>
+<p>Die erste Generation (<a href="Pipeline_README.html">v1</a>) verschränkte alles in
+<em>einer</em> Schleife pro Funktion: deterministische Fixes, Permuter und LLM-Calls teilten
+sich ein gemeinsames Wall-Clock-Budget. Das erzwang ständiges Feintuning &mdash; Bremsen,
+per-Stufe-Budgets, Fristen-Plumbing &mdash; nur weil beide Zweige um Zeit konkurrierten.</p>
 
 <div class="box bad">
-  <span class="lab">Warum das schwer ist</span>
-  Es reicht nicht, semantisch korrekten C zu schreiben. Registerwahl, Instruktions-
-  Reihenfolge, Stack-Layout und Optimierungs-Eigenheiten m&uuml;ssen <em>exakt</em> dem
-  entsprechen, was IDO 5.3 vor 25 Jahren erzeugt h&auml;tte. Schon eine andere
-  Klammerung, ein falscher Typ oder eine umsortierte Anweisung erzeugt andere Bytes.
-  Tausende Funktionen von Hand so zu treffen ist extrem m&uuml;hsam.
+  <span class="lab">Die gemessene Diagnose</span>
+  In einem Re-Lauf über 90 harte Fälle fraß die deterministische Exploration auf großen
+  Funktionen 1200&ndash;2100&nbsp;s &mdash; die Agenten kamen <b>gar nicht dran</b>. Dort wo
+  der Agent doch lief, lieferte er <b>3 der 5 besten Ergebnisse</b>. Befund: das Werkzeug
+  ist mächtig, es bekam nur keine Zeit. Und: der deterministische (no-AI) Pfad ist
+  <b>bit-identisch reproduzierbar</b> und braucht <b>keine</b> Frist (er terminiert selbst
+  über die streng fallende Metrik + ein Besuchts-Set).
 </div>
 
-<p>Die Pipeline automatisiert diese Schleife: <b>kompilieren &rarr; mit dem Ziel
-vergleichen &rarr; den Diff verstehen &rarr; den C gezielt &auml;ndern &rarr;
-wiederholen</b> &mdash; mit einem LLM als &bdquo;&Uuml;bersetzer&ldquo; und einer Reihe
-deterministischer Werkzeuge, die dem Modell die Arbeit abnehmen, wo Determinismus
-verl&auml;sslicher ist.</p>
+<p>Konsequenz: <b>entkoppeln statt tunen</b>. Determinismus läuft erschöpfend und fristlos
+(Phase 1); der Agent bekommt den Rest und pro Domäne die volle Zeit (Phase 2). Beide nutzen
+dieselbe Modul-Bibliothek und dieselbe Metrik &mdash; sie konkurrieren nur nicht mehr um das
+Budget.</p>
 </section>
 
 <!-- ===================================================== 2 -->
-<section id="architektur">
-<h2 class="sec"><span class="n">2</span>Architektur</h2>
-<p>Beide Wrapper sind d&uuml;nne Orchestrierer; die eigentliche Logik liegt in
-wiederverwendbaren Modulen. Der Mutter-Wrapper importiert die Match-Kernlogik des
-Hauptwrappers <b>nicht</b> &mdash; er hat ein eigenes, PIC-basiertes Match-Backend &mdash;
-teilt sich aber Compiler-Treiber, KI-Schnittstelle und Wissensbasis read-only.</p>
+<section id="metrik">
+<h2 class="sec"><span class="n">2</span>Die Prioritäts-Metrik <span class="muted" style="font:400 15px var(--sans)">&mdash; das Reward-Signal</span></h2>
+<p>Jede Bewertung beginnt mit dem <b>wasserdichten Match-Kriterium</b>: die Ziel-<code>.s</code>
+wird einmalig zu einer <b>unrelocierten</b> <code>.o</code> assembliert und mit der
+Kandidaten-<code>.o</code> verglichen &mdash; rohe Immediates beidseitig 0, Relocations über
+<b>Symbol&nbsp;+&nbsp;Typ</b> (<code>R_MIPS_*</code>), nicht über aufgelösten Hex. Daraus
+leiten sich <code>tier</code> (0&nbsp;perfekt&nbsp;/&nbsp;1&nbsp;permuter-fertig&nbsp;/&nbsp;2&nbsp;offen)
+und <code>mm</code> (abweichende Bytes) ab.</p>
 
-<pre><code>                 ┌─────────────────────┐     ┌────────────────────────┐
-                 │   0_wrapper.py      │     │  1_wrapper_mother.py   │
-                 │   (Hauptpipeline)   │     │  (Mutter-Wrapper)      │
-                 └─────────┬───────────┘     └───────────┬────────────┘
-                           │                             │
-        ┌──────────────────┼─────────────────────────────┼──────────────────┐
-        │                  │  gemeinsame modules/         │                  │
-        ▼                  ▼                              ▼                  ▼
- ┌─────────────┐   ┌───────────────┐            ┌──────────────────┐  ┌─────────────┐
- │ ido_compiler│   │ ai_agent      │            │ mother_seed      │  │ cheatsheet  │
- │ (IDO 5.3 +  │   │ (LLM: local/  │            │ mother_match     │  │ + similar   │
- │  Autofix)   │   │  dashscope/   │            │ mother_similar   │  │   DB        │
- └─────────────┘   │  claude)      │            │ mother_common    │  └─────────────┘
- ┌─────────────┐   └───────────────┘            └──────────────────┘  ┌─────────────┐
- │ido_comparison│  ┌───────────────┐            (PIC compile-in-       │ session     │
- │(.o-vs-.o     │  │ micro_permuter│             mother, Arm-Diff)     │ (Resume/    │
- │  Bewertung)  │  │ diff_generator│                                   │  History)   │
- └─────────────┘   └───────────────┘                                   └─────────────┘</code></pre>
+<div class="box key">
+  <span class="lab">Statt einer Zahl: ein lexikografisches 7-Tupel</span>
+  Ein reiner Byte-Zähler verschleiert <em>welche Art</em> von Fortschritt passiert ist. Diese
+  Pipeline ordnet Kandidaten stattdessen nach <b>Symptom-Schwere</b> &mdash; ein gefüllter
+  fehlender Block ist strukturell näher am Ziel als ein paar weniger abweichende Bytes,
+  selbst wenn der Byte-Zähler kurz steigt.
+</div>
+
+<div class="metric">
+  <div class="cell"><b>md</b><span>fehlende Instr.</span></div>
+  <span class="arrow">&rsaquo;</span>
+  <div class="cell"><b>p1</b><span>Root-Logik</span></div>
+  <span class="arrow">&rsaquo;</span>
+  <div class="cell"><b>p2</b><span>Struktur</span></div>
+  <span class="arrow">&rsaquo;</span>
+  <div class="cell"><b>p3</b><span>Datenref</span></div>
+  <span class="arrow">&rsaquo;</span>
+  <div class="cell"><b>p4</b><span>Allokation/Frame</span></div>
+  <span class="arrow">&rsaquo;</span>
+  <div class="cell"><b>tier</b><span>0/1/2</span></div>
+  <span class="arrow">&rsaquo;</span>
+  <div class="cell"><b>mm</b><span>Byte-Distanz</span></div>
+</div>
 
 <table>
-  <thead><tr><th></th><th>0_wrapper</th><th>1_wrapper_mother</th></tr></thead>
+  <thead><tr><th>Feld</th><th>Bedeutung</th><th>Warum diese Reihenfolge</th></tr></thead>
   <tbody>
-    <tr><td><b>Eingabe</b></td><td>C-Entwurf pro Funktion + Ziel-<code>.s</code></td>
-        <td>nur Mutter-<code>.s</code> (C wird via m2c gewonnen)</td></tr>
-    <tr><td><b>Compile-Modus</b></td><td>non-PIC (<code>-non_shared</code>), Standalone-Funktion</td>
-        <td>PIC, <code>-g3</code>, ganze Mutter als Einheit</td></tr>
-    <tr><td><b>Match-Einheit</b></td><td>die ganze Funktion</td>
-        <td>jeder Arm einzeln, front-to-back</td></tr>
-    <tr><td><b>Match-Backend</b></td><td><code>ido_comparison</code> (.o-vs-.o)</td>
-        <td><code>mother_match</code> (Region-Cut im Mutter-Kontext)</td></tr>
-    <tr><td><b>Reife</b></td><td class="ok">erprobt, l&auml;uft im Massenbetrieb</td>
-        <td class="cyan">jung, baut auf bewiesenem Splitter-Modell</td></tr>
+    <tr><td><code>md</code></td><td>Summe fehlender Ziel-Instruktionen (Lücken im Entwurf).</td>
+        <td>Ein Match (mm=0) erfordert md=0; fehlender Code ist eine Sackgasse für alle anderen
+        Experten. Lücken zuerst füllen.</td></tr>
+    <tr><td><code>p1</code></td><td>Root-Logik: Instruction-Mismatch + echte Operanden-Diffs
+        (kein reines Register-Tauschen).</td><td>Falsche Logik ändert die meiste Folge-ASM.</td></tr>
+    <tr><td><code>p2</code></td><td>Struktur: Extra-Code, Reordering.</td>
+        <td>Strukturelle Abweichung vor lokaler.</td></tr>
+    <tr><td><code>p3</code></td><td>Datenreferenz: Memory-Access-Offsets.</td><td>&nbsp;</td></tr>
+    <tr><td><code>p4</code></td><td>Allokation/Frame: Stack-Offsets, reine Register-Diffs.</td>
+        <td><b>Zuletzt</b> &mdash; das ist Compiler-Codegen, oft Aufgabe des Permuters, nicht
+        editierbarer C.</td></tr>
+    <tr><td><code>tier</code></td><td>0 = byte-exakt, 1 = permuter-fertig (nur noch reine
+        Reg-Allokation offen), 2 = offen.</td><td>Grobe Ziel-Klasse.</td></tr>
+    <tr><td><code>mm</code></td><td>Zahl abweichender Bytes.</td><td>Feinste Auflösung.</td></tr>
   </tbody>
 </table>
+
+<p>Akzeptiert wird ein Kandidat nur bei <b>strikt lexikografischer</b> Verbesserung dieses
+Tupels. Dieselbe Funktion <code>_EV_SYNTH</code> bewertet Phase 1 <em>und</em> Phase 2 &mdash;
+ein einziges, konsistentes Reward-Signal über die ganze Pipeline.</p>
+
+<div class="legend">
+  <span><span class="swatch" style="background:var(--good)"></span><b class="ok">perfect</b> &mdash; tier 0, mm 0 (byte-exakt)</span>
+  <span><span class="swatch" style="background:#56d4dd"></span><b class="cyan">permuter-ready</b> &mdash; tier 1</span>
+  <span><span class="swatch" style="background:var(--warn)"></span><b style="color:var(--warn)">improved</b> &mdash; Tupel gesunken</span>
+  <span><span class="swatch" style="background:var(--bad)"></span><b class="no">open</b> &mdash; kein Fortschritt</span>
+</div>
 </section>
 
 <!-- ===================================================== 3 -->
-<section id="match">
-<h2 class="sec"><span class="n">3</span>Das Match-Kriterium <span class="muted" style="font:400 15px var(--sans)">&mdash; <code>modules/ido_comparison.py</code></span></h2>
-<p>Das Herz jeder Bewertung ist die Frage: <em>Sind die kompilierten Bytes
-byte-identisch zum Ziel?</em> Naiv w&uuml;rde man den disassemblierten <code>.s</code>-Text
-vergleichen &mdash; das ist aber falsch, weil das ROM-<code>.s</code> bereits
-<b>aufgel&ouml;ste Relocations</b> enth&auml;lt (jede <code>%hi</code>/<code>%lo</code>/<code>jal</code>-Adresse),
-die ein frisch kompiliertes Objekt noch nicht hat.</p>
+<section id="architektur">
+<h2 class="sec"><span class="n">3</span>Zwei-Phasen-Architektur</h2>
+<p>Beide Phasen sind dünne Orchestrierer über einer gemeinsamen Modul-Bibliothek
+(Compiler-Treiber, Match-Bewertung, Diff-Generator, Experten, LLM-Engine, Permuter,
+Wissensbasis). Der Zustand wird zwischen den Phasen <b>über Platte verkettet</b>
+(<code>PIPELINE_WORK</code>): bester Code + Metrik pro Funktion.</p>
 
-<div class="box key">
-  <span class="lab">Wasserdichter .o-vs-.o-Vergleich</span>
-  Die Pipeline assembliert die Ziel-<code>.s</code> (mit <code>prelude.inc</code>) einmalig
-  zu einer <b>unrelocierten</b> <code>.o</code> und vergleicht sie mit der Kandidaten-<code>.o</code>:
-  rohe Immediates sind beidseitig 0, und Relocations werden &uuml;ber
-  <b>Symbol&nbsp;+&nbsp;Typ</b> (<code>R_MIPS_*</code>) verglichen &mdash; nicht &uuml;ber
-  bereits aufgel&ouml;sten Hex. Das Ziel-<code>.o</code> wird pro Pfad gecacht.
-</div>
+<pre><code>            ┌──────────────────────────────────────────────────────────────┐
+            │  data/c_input  +  data/target_asm   (Entwürfe + Ziel-ASM)      │
+            └───────────────────────────────┬──────────────────────────────┘
+                                            ▼
+   ┌───────────────────────── PHASE 1  (ping_pong_wrapper.py, ai=None) ──────────────────┐
+   │  Vorflug 0b compile-fix · 0 similar-transplant · 0c frankenstein                     │
+   │  Ping-Pong:  Diff → Symptom-Typ → deterministische Experten → akzeptiere (Tupel↓)    │
+   │  erschöpfend · fristlos · bit-identisch · 0 Tokens                                   │
+   └───────────────────────────────┬──────────────────────────────────────┬─────────────┘
+              perfect / permuter ◄──┘                          tier-2-Rest  ▼
+   ┌───────────────────────── PHASE 2  (agentic_tooling.py, + Pod) ──────────────────────┐
+   │  je Funktion KASKADE:  garbage → det → struct → det → logic → det → logic2 → det     │
+   │  Domänen-Routing (struct/logic vorab-gegated) · jede Stufe volle Zeit                │
+   └───────────────────────────────┬──────────────────────────────────────────────────-─┘
+                                    ▼
+   ┌────────────────────────────────────────────────────────────────────────────────────┐
+   │  gemeinsame modules/:  ido_compiler · ido_comparison · diff_generator ·              │
+   │  agent_engine · expert_* (immediate/missing_block/stack_frame/…) · m2c · permuter    │
+   └────────────────────────────────────────────────────────────────────────────────────┘</code></pre>
 
-<p>Daraus berechnet <code>evaluate_match</code> zwei Kennzahlen:</p>
 <table>
-  <thead><tr><th>Metrik</th><th>Bedeutung</th></tr></thead>
+  <thead><tr><th></th><th>Phase 1 &mdash; Deterministik</th><th>Phase 2 &mdash; Agentic Tooling</th></tr></thead>
   <tbody>
-    <tr><td><code>match_rate</code></td><td>Anteil byte-identischer Instruktionen inkl.
-      korrekter Relocations. <b>100&nbsp;% = perfekter Match.</b></td></tr>
-    <tr><td><code>struct_score</code></td><td>Struktureller Score (SequenceMatcher auf
-      einem maskierten &bdquo;Skeleton&ldquo;): robuster gegen Relocations. <b>struct&nbsp;100&nbsp;%
-      bei match&nbsp;&lt;&nbsp;100&nbsp;%</b> = nur noch Relocations offen, die KI kann nicht
-      mehr helfen.</td></tr>
+    <tr><td><b>Datei</b></td><td><code>ping_pong_wrapper.py</code> (<code>orchestrate</code>)</td>
+        <td><code>agentic_tooling.py</code></td></tr>
+    <tr><td><b>KI</b></td><td class="ok">keine (bit-identisch)</td><td class="cyan">lokaler Pod (vLLM)</td></tr>
+    <tr><td><b>Frist</b></td><td>keine &mdash; läuft erschöpfend</td><td>pro Domänen-Stufe volle Zeit</td></tr>
+    <tr><td><b>Einheit</b></td><td>Symptom-geroutete Experten</td><td>Fix-Domänen-Stufen (Kaskade)</td></tr>
+    <tr><td><b>Eingabe</b></td><td>bester bestehender Code (metrik-basiert)</td>
+        <td>Phase-1-Rest (tier 2)</td></tr>
+    <tr><td><b>Reife</b></td><td class="ok">erprobt, Massenbetrieb</td>
+        <td class="cyan">im produktiven Voll-Lauf</td></tr>
   </tbody>
 </table>
-
-<div class="legend">
-  <span><span class="swatch" style="background:var(--good)"></span><b class="ok">perfect</b> &mdash; match 100&nbsp;% (byte-exakt)</span>
-  <span><span class="swatch" style="background:#56d4dd"></span><b class="cyan">struct</b> &mdash; struct 100&nbsp;%, Rest Relocations</span>
-  <span><span class="swatch" style="background:var(--warn)"></span><b style="color:var(--warn)">partial</b> &mdash; kompilierbarer Seed</span>
-  <span><span class="swatch" style="background:var(--bad)"></span><b class="no">failed</b> &mdash; kompiliert nie</span>
-</div>
-<p class="muted">Diese vier Kategorien bestimmen, in welches <code>output/</code>-Verzeichnis
-ein Ergebnis wandert und ob es als verwertbarer Seed f&uuml;r den externen Permuter taugt.</p>
 </section>
 
 <!-- ===================================================== 4 -->
-<section id="wrapper0">
-<h2 class="sec"><span class="n">4</span>0_wrapper.py &mdash; die Hauptpipeline</h2>
-<p>Der Hauptwrapper verarbeitet ganze Verzeichnisb&auml;ume von C-Entw&uuml;rfen parallel
-(<code>ThreadPoolExecutor</code>). Pro Funktion ruft er <code>process_function</code> auf,
-das die unten beschriebenen Phasen durchl&auml;uft. Fertige Funktionen
-(<code>perfect</code>/<code>struct</code>) werden vorab gefiltert, ein
-<code>--resume</code>-Mechanismus erlaubt das Fortsetzen abgebrochener L&auml;ufe.</p>
+<section id="phase1">
+<h2 class="sec"><span class="n">4</span>Phase 1 &mdash; Deterministisches Experten-Ping-Pong</h2>
+<p>Phase 1 ruft pro Funktion <code>orchestrate(ai=None)</code>: ein Vorflug aus
+Transplant-Stufen, dann eine Ping-Pong-Schleife, die den Diff klassifiziert und an
+spezialisierte Experten verteilt. Bit-identisch, ohne KI, ohne Frist &mdash; der
+Resume-Stand wird stets metrik-basiert aus allen Quellen (work-dir, struct/partial-matches,
+c_input) als bester Code gewählt.</p>
 
-<!-- ---- 4.1 Phasen ---- -->
-<h3 id="phasen">4.1&nbsp;&nbsp;Die Phasen</h3>
+<!-- 4.1 -->
+<h3 id="phase1-vorflug">4.1&nbsp;&nbsp;Der Vorflug (Phasen 0b / 0 / 0c)</h3>
 <div class="flow">
+  <div class="step"><div class="dot">0b</div><div class="body">
+    <b>Compile-Error-Experte.</b> Kompiliert der Entwurf nicht, repariert ihn ein
+    self-contained Experte: deterministisch → halluzinations-gegatete KI → m2c-Rescue als
+    letzte Stufe. Nur danach geht es in die Bewertung.
+  </div></div>
+  <div class="conn"></div>
   <div class="step"><div class="dot g">0</div><div class="body">
-    <b>Phase 0 &mdash; Cluster-Transplant-Vorflug.</b> Existiert ein bereits
-    <em>gel&ouml;stes</em> &auml;hnliches Funktion (perfect/struct) mit hoher ASM-&Auml;hnlichkeit
-    (DB-Score &ge; 90&nbsp;%), wird dessen Referenz-L&ouml;sung mit den Symbolen <em>dieser</em>
-    Funktion transplantiert und live verifiziert. Trifft es byte-exakt &rarr; sofort
-    speichern, <b>0 KI-Calls</b>. F&auml;ngt exakte ASM-Cluster ab.
+    <b>Similar-Transplant.</b> Gibt es eine ähnliche, bereits gelöste Funktion, werden deren
+    Referenz-Lösung und Symbole über mehrere Permuter-Pässe transplantiert und live
+    orakel-verifiziert &mdash; behält nur, was das Tupel senkt.
   </div></div>
   <div class="conn"></div>
-  <div class="step"><div class="dot">A</div><div class="body">
-    <b>Phase A &mdash; Syntax.</b> Den Entwurf zum Kompilieren bringen. Zuerst
-    <b>deterministischer Auto-Fix</b> (Redeclaration, falscher R&uuml;ckgabetyp,
-    undefinierte Symbole &mdash; aus den autoritativen Header-Typen). Erst wenn das
-    nicht reicht, KI-<code>syntax_fix</code>-Calls (mit optionaler Thinking-/Batch-
-    Eskalation). Scheitert alles, ein <b>Rescue</b> &uuml;ber die &auml;hnliche Referenz.
-  </div></div>
-  <div class="conn"></div>
-  <div class="step"><div class="dot">B</div><div class="body">
-    <b>Phase B/C &mdash; Diff-Minimierung.</b> Iterative Schleife: kompilieren,
-    <code>evaluate_match</code>, JSON-Diff erzeugen, KI gezielt &auml;ndern lassen.
-    <b>Fortschritt</b> wird &uuml;ber <code>struct_score</code> getrackt; bei Stagnation
-    steigt die Temperatur, dann wird der Modus eskaliert. Erreicht eine Runde
-    match&nbsp;100&nbsp;% &rarr; perfect; struct&nbsp;100&nbsp;% &rarr; struct (Abbruch,
-    da nur Relocations offen).
-  </div></div>
-  <div class="conn"></div>
-  <div class="step"><div class="dot g">P</div><div class="body">
-    <b>Permuter Fast-Lane.</b> Sobald der Diff klein genug ist (<code>is_permuter_ready</code>),
-    f&auml;hrt der <code>micro_permuter</code> (Regex- + AST-Permutationen, Beam-Suche,
-    similar-seeded) deterministisch dazwischen. L&ouml;st er es byte-exakt, ist die
-    Funktion fertig &mdash; ebenfalls ohne weitere KI.
+  <div class="step"><div class="dot g">0c</div><div class="body">
+    <b>Frankenstein &mdash; Multi-Donor-Transplant.</b> Setzt aus mehreren gelösten Funktionen
+    Fragmente zusammen (Set-Cover über eine Fragment-DB). Self-gating (lohnt nur bei
+    ausreichender Coverage), md-primär gegated &mdash; nimmt nur strikte Verbesserungen.
   </div></div>
 </div>
 
+<!-- 4.2 -->
+<h3 id="phase1-routing">4.2&nbsp;&nbsp;Symptom-Routing &amp; die Experten</h3>
+<p>Der JSON-Diff klassifiziert jede Abweichung in einen <b>Symptom-Typ</b>; jeder Typ triggert
+genau die zuständigen <b>deterministischen Experten</b>. So läuft nie ein Experte, dessen
+Domäne gar nicht im Diff steht.</p>
+<table>
+  <thead><tr><th>Symptom-Typ (Diff)</th><th>Experten</th><th>Was sie tun</th></tr></thead>
+  <tbody>
+    <tr><td>Register/Immediate, Address Load</td><td><code>immediate</code>, <code>register-order</code></td>
+        <td>Literale auf den Zielwert; Deklarationsreihenfolge für Reg-Allokation.</td></tr>
+    <tr><td>Memory Access</td><td><code>memory-offset</code></td><td>Struct-Feld-Offsets / Element-Größen.</td></tr>
+    <tr><td>Instruction Mismatch</td><td><code>instr-width</code>, <code>instr-op</code>, <code>mb-garbage</code></td>
+        <td>Load/Store-Breite &amp; Stride; Operator/Signedness; Block-Rewrite als Fallback.</td></tr>
+    <tr><td>Missing in Draft</td><td><code>missing-block</code></td>
+        <td>Fehlende Instruktionsblöcke synthetisieren (m2c-Pseudocode-Plan, konsekutive Pässe).</td></tr>
+    <tr><td>Stack Frame Mismatch</td><td><code>stack-frame</code>, <code>extra-code</code></td>
+        <td>Frame-Layout-Transforms; totes Statement trimmen → Frame schrumpft.</td></tr>
+    <tr><td>Extra in Draft</td><td><code>extra-code</code></td><td>Überzähligen Code entfernen.</td></tr>
+    <tr><td>Reordered</td><td><code>reorder</code></td><td>Anweisungs-Reihenfolge angleichen.</td></tr>
+  </tbody>
+</table>
+<p class="muted">Bleibt nach md&gt;0 noch Code-Mangel und ist KI verfügbar, feuert
+<code>missing-block</code> bis zu mehreren <b>konsekutiven</b> Pässen (varianz-behaftet,
+kompoundierend) &mdash; in Phase 1 ohne KI deterministisch, in der Kaskade als eigene Stufe.</p>
+
+<!-- 4.3 -->
+<h3 id="phase1-accept">4.3&nbsp;&nbsp;Die Akzeptanz-Regel</h3>
 <div class="box info">
-  <span class="lab">Konstanten (modus-abh&auml;ngig)</span>
-  <code>MAX_SYNTAX_RETRIES&nbsp;=&nbsp;8</code> &middot;
-  <code>MAX_DIFF_ROUNDS&nbsp;=&nbsp;20</code> (thinking-artig) bzw. <code>50</code> (oneshot) &middot;
-  Temperatur <code>0.5&nbsp;&rarr;&nbsp;0.7</code> bei Stagnation &middot;
-  Abbruch nach <code>8</code>/<code>15</code> stagnierenden Runden bei Max-Temp.
-  Jeder Erfolg wird in <code>data/session/</code> persistiert &rarr; &uuml;berlebt Neustarts.
+  <span class="lab">md-primär, strikt lexikografisch</span>
+  Die Schleife übernimmt einen Experten-Vorschlag nur, wenn er das Prioritäts-Tupel
+  <b>strikt senkt</b>. Ein gefüllter Block (md kleiner) wird sogar dann übernommen, wenn die
+  Byte-Distanz kurz steigt &mdash; weil er der einzige Resume-Stand ist, von dem die
+  Folge-Experten überhaupt weiterkommen. Ein Besuchts-Set bricht Oszillationen ab; ohne
+  Fortschritt endet die Funktion sauber als Handoff (tier 2) an Phase 2.
 </div>
-
-<!-- ---- 4.2 Modi ---- -->
-<h3 id="modi">4.2&nbsp;&nbsp;Eskalations-Modi (<code>CONV_MODE</code>)</h3>
-<p>Die KI-Schnittstelle (<code>modules/ai_agent.py</code>) kennt mehrere Betriebsarten.
-Der Kern-Trick: teure Modi werden erst <em>bei nachgewiesener Stagnation</em>
-zugeschaltet, statt von Anfang an Tokens zu verbrennen.</p>
-<table>
-  <thead><tr><th>Modus</th><th>Verhalten</th></tr></thead>
-  <tbody>
-    <tr><td><code>--oneshot</code></td><td>Jeder Call isoliert; History/Verlauf wird als
-      Kontext in den Prompt geschrieben. Schnell, deterministisch-nah.</td></tr>
-    <tr><td><code>--thinking</code></td><td>Qwen3.6-Multi-Turn mit <em>Thinking
-      Preservation</em>. Reasoning wird lokal geloggt, aber <b>nie</b> in die n&auml;chste
-      API-Nachricht zur&uuml;ckgespielt (verhindert Selbstkorrektur-Loops).</td></tr>
-    <tr><td><code>--dynamic</code></td><td>Startet als oneshot, eskaliert <b>einmalig</b> zu
-      einem Thinking-Call, wenn eine Funktion bei &lt;&nbsp;80&nbsp;% struct festh&auml;ngt.</td></tr>
-    <tr><td><code>--dynamic-batch</code></td><td>Startet als oneshot, eskaliert bei
-      Stagnation zu <b>Best-of-N-Batch</b> mit adaptivem Budget (Basis 8 + Bonus je
-      Kontext-Stufe). Die Diversit&auml;t kommt aus dem Kontext-Fahrplan, nicht aus Temp-Spread.</td></tr>
-    <tr><td><code>--dynamic-compiler</code></td><td>Orthogonal: eskaliert <em>Syntax</em>-Fixes
-      zu Thinking, wenn der Compile-Loop 5&times; in Folge scheitert. Mit jedem anderen
-      Modus kombinierbar.</td></tr>
-    <tr><td><code>-b N</code></td><td>Globales Best-of-N: feuert N parallele Kandidaten pro
-      Runde, der beste (nach autoritativem Score) gewinnt.</td></tr>
-  </tbody>
-</table>
-<p class="muted">Welche Modelle/Backends hinter diesen Modi stehen &mdash; und warum lokal
-vs. Cloud aus Kostengr&uuml;nden getrennt sind &mdash; steht in
-<a href="#modelle">&sect;4.5</a>.</p>
-
-<!-- ---- 4.3 Kontext-Fahrplan ---- -->
-<h3 id="fahrplan">4.3&nbsp;&nbsp;Der Kontext-Fahrplan</h3>
-<p>Wenn eine Funktion mit Vollkontext stagniert, ist oft <em>weniger Rauschen</em> die
-richtige Antwort. Statt im Batch N fast identische Prompts zu feuern, variiert der
-Fahrplan die <b>Kontext-Zusammensetzung</b> &uuml;ber die Slots. Der ASM-Diff (einzige
-Wahrheit) und die <b>harten</b> TechEnv-Fakten (Namen, Gr&ouml;&szlig;en, Stack-Layout,
-Calls) bleiben immer; reduziert werden nur <em>inferierte</em> Felder, das Cheatsheet
-und zuletzt die &auml;hnliche Referenz.</p>
-<table>
-  <thead><tr><th>Stufe</th><th>TechEnv</th><th>Cheatsheet</th><th>Similar</th><th>Zweck</th></tr></thead>
-  <tbody>
-    <tr><td><code>full</code></td><td>voll</td><td>✓</td><td>✓</td><td>maximaler Kontext</td></tr>
-    <tr><td><code>no_cs</code></td><td>voll</td><td>✗</td><td>✓</td><td>Cheatsheet-Rauschen raus</td></tr>
-    <tr><td><code>hard_env</code></td><td>nur harte Fakten</td><td>✗</td><td>✓</td><td>inferierte Typen raus</td></tr>
-    <tr><td><code>diff_only</code></td><td>nur harte Fakten</td><td>✗</td><td>✗</td><td>befreit von falschem Mikro-Muster</td></tr>
-  </tbody>
-</table>
-<p class="muted">Stufen, die sich nur in fehlenden Zutaten unterscheiden, kollabieren
-automatisch &mdash; kein Slot wird auf einen identischen Prompt verschwendet. Das
-Batch-Budget w&auml;chst mit der Zahl wirklich unterscheidbarer Stufen.</p>
-
-<!-- ---- 4.4 No-AI ---- -->
-<h3 id="noai">4.4&nbsp;&nbsp;No-AI Cluster-Scan (<code>--no-ai</code>)</h3>
-<div class="box key">
-  <span class="lab">0 Tokens, volle Geschwindigkeit</span>
-  Im <code>--no-ai</code>-Modus l&auml;uft die Pipeline <b>ohne einen einzigen KI-Call</b>:
-  nur deterministischer Auto-Fix + Phase-0-Cluster-Transplantat + Beam-Permuter +
-  Diff-Bewertung. Er &uuml;berschreibt alle KI-Flags, erzwingt das Laden der Similar-DB
-  und &uuml;berspringt den Backend-Health-Check. Zweck: g&uuml;nstig abklopfen, wie viele
-  Funktionen rein aus bestehenden ASM-Clustern fallen, bevor man teure KI ansetzt.
-</div>
-
-<!-- ---- 4.5 KI-Modelle ---- -->
-<h3 id="modelle">4.5&nbsp;&nbsp;KI-Modelle &amp; Backends (Kostenstrategie)</h3>
-<p>Die KI-Schnittstelle ist backend-agnostisch (OpenAI-kompatibel) und kennt
-<b>zwei Betriebsarten</b>, die bewusst aus <b>Kostengr&uuml;nden</b> getrennt sind:</p>
-
-<div class="grid2">
-  <div class="box info">
-    <span class="lab">Lokal &mdash; GPU-LLM &uuml;ber RunPod</span>
-    Ein selbst gehostetes Modell auf gemieteter GPU (RunPod), via <code>vLLM</code>
-    OpenAI-kompatibel angebunden (<code>LOCAL_API_BASE</code>/<code>_KEY</code>/<code>_MODEL</code>).
-    <b>Der prim&auml;re Pfad f&uuml;r den Massenbetrieb</b> &mdash; tausende Calls ohne
-    Pro-Token-Abrechnung, volle Kontrolle &uuml;ber Sampling und Thinking.
-  </div>
-  <div class="box info">
-    <span class="lab">Cloud-API &mdash; Claude &amp; Alibaba DashScope</span>
-    Anthropic <code>Claude</code> und Alibaba <code>DashScope</code> (Qwen) als
-    austauschbare API-Backends &mdash; n&uuml;tzlich f&uuml;r Stichproben, schwere
-    Einzelf&auml;lle oder wenn keine GPU l&auml;uft. Ohne Setup-Aufwand, aber pro Token
-    abgerechnet.
-  </div>
-</div>
-
-<div class="box key">
-  <span class="lab">Erprobtes Optimum</span>
-  Nach Vergleich mehrerer Modelle und Modi liefert <b><code>Qwen/Qwen3.6-35B-A3B</code> im
-  Oneshot-Modus</b> in dieser Pipeline die besten Ergebnisse: <b>schnell und effizient</b>.
-  Das passt zur Architektur &mdash; weil Determinismus, Permuter und Wissensbasis dem
-  Modell viel Arbeit abnehmen, schl&auml;gt ein schneller, g&uuml;nstiger Oneshot-Call das
-  teure Dauer-Reasoning. Teurere Modi (thinking/batch) werden nur bei nachgewiesener
-  Stagnation zugeschaltet.
-</div>
-
-<p class="muted">Die Modell-Familie (Qwen3 vs. Gemma4) wird automatisch am Namen erkannt
-und steuert, wie Thinking aktiviert, Reasoning extrahiert und Sampling gesetzt wird.
-Optionales HTTP-Streaming verhindert Cloudflare-524-Timeouts bei langen Thinking-Calls.</p>
 </section>
 
 <!-- ===================================================== 5 -->
-<section id="wrapper1">
-<h2 class="sec"><span class="n">5</span>1_wrapper_mother.py &mdash; der Mutter-Wrapper</h2>
+<section id="phase2">
+<h2 class="sec"><span class="n">5</span>Phase 2 &mdash; Agentic Tooling, domänenabhängig</h2>
+<p>Phase 2 nimmt die Restmenge (tier 2) und schickt jede Funktion durch eine Kaskade aus
+agentischen Stufen und deterministischen Aufräum-Pässen. Der Clou: <b>derselbe</b>
+LLM-Engine wird pro Stufe auf <em>eine</em> Fix-Domäne fokussiert.</p>
 
+<!-- 5.1 -->
+<h3 id="phase2-engine">5.1&nbsp;&nbsp;Der generische Engine (focus = Parameter)</h3>
 <div class="box key">
-  <span class="lab">Wof&uuml;r dieser Wrapper existiert</span>
-  Die Hauptpipeline (0_wrapper) erzielt ihre <b>besten Ergebnisse auf kleinen
-  Funktionen</b> &mdash; je gr&ouml;&szlig;er der Code, desto mehr Diff-Stellen koppeln
-  aneinander und desto schwerer wird ein byte-exakter Treffer in einem Rutsch.
-  Der Mutter-Wrapper l&ouml;st genau dieses Skalierungsproblem: er <b>zerlegt eine
-  gro&szlig;e Funktion kontextbewusst in kleinere, beherrschbare H&auml;ppchen
-  (&bdquo;Arme&ldquo;)</b> und serviert sie dem KI-&Uuml;bersetzer einzeln &mdash; jeder Arm
-  mit seinem eigenen, fokussierten Byte-Ziel. Damit greift dieselbe Agenten-Schleife,
-  die bei kleinen Funktionen funktioniert, auch f&uuml;r riesige M&uuml;tter.
+  <span class="lab">Ein Engine, viele Domänen</span>
+  <code>agent_engine.run(focus, …)</code> ist ein Compile-Feedback-Loop mit ReAct-Tools. Der
+  <code>focus</code>-Parameter bestimmt, <b>welche</b> Diffs als Ziel zählen &mdash; für alle
+  anderen ist der Agent „blind" (sie bleiben Handoff an die deterministischen Experten). Das
+  verhindert den Tunnelblick von „fix this", der sonst Kollateralschaden in Nachbar-Domänen
+  anrichtet: der Agent sieht das <em>volle</em> Diff als Kontext, schließt aber nur seine
+  Domäne.
 </div>
 
-<p>Riesige Funktionen lassen sich kaum als Ganzes auf byte-exakt treiben.
-Dieser Wrapper baut auf dem bewiesenen Modell des
-<a href="Splitter_README.html"><b>Alt-Splitters</b></a> auf (siehe dort f&uuml;r das
-Match-Modell, 82/82 Arme byte-exakt). Er teilt sich Compiler-Treiber, KI und
-Wissensbasis mit dem Hauptwrapper, hat aber ein <b>eigenes PIC-Match-Backend</b> und
-importiert die non-PIC-Match-Logik des Hauptwrappers bewusst nie.</p>
-
-<div class="box key">
-  <span class="lab">Die zentrale Idee (vom Splitter)</span>
-  Arme niemals standalone kompilieren (das scheitert an der Registerallokation).
-  Stattdessen die <b>ganze Mutter</b> kompilieren und die echten Bytes an den
-  C-Arm-Grenzen <b>herausschneiden</b>. Sind alle Arme byte-exakt, ist die Mutter
-  <em>by construction</em> bitgenau.
-</div>
-
+<!-- 5.2 -->
+<h3 id="phase2-domains">5.2&nbsp;&nbsp;Die drei Domänen-Stufen</h3>
 <div class="flow">
-  <div class="step"><div class="dot">1</div><div class="body">
-    <b>SEED.</b> Die Mutter-<code>.s</code> durch <code>m2c</code> jagen &rarr;
-    strukturierter C: Signatur, Frame, Kontrollfluss + Erstentwurf jedes Arms.
-    <code>?</code>-Typen werden zu <code>s32</code> saniert. (<code>mother_seed</code>)
+  <div class="step"><div class="dot c">1</div><div class="body">
+    <b>struct &mdash; <code>focus=structure</code>.</b> Schließt strukturelle Lücken: fehlende
+    Instruktionen, Extra-Code, Reordering, ganze abweichende Blöcke. Werkzeug: m2c-Referenz
+    als Pseudocode-Plan.
   </div></div>
   <div class="conn"></div>
-  <div class="step"><div class="dot">2</div><div class="body">
-    <b>GATE.</b> Nur <em>wasserdichte</em> M&uuml;tter (genestete ifs, 1 Block/Arm) werden
-    bearbeitet; Loop-/Switch-M&uuml;tter werden markiert &amp; &uuml;bersprungen.
+  <div class="step"><div class="dot c">2</div><div class="body">
+    <b>logic &mdash; <code>focus=logic</code> (TYP ∪ KONST ∪ OP), Stufe&nbsp;1 strict.</b> Eine
+    zusammenhängende „lokale In-Place-Edit"-Domäne: falsche Element-/Pointer-<b>Typen</b>
+    (Load-Breite, Array-Stride), abweichende <b>Konstanten</b>, <b>Operator/Signedness</b>
+    (sra/srl, slt/sltu, +/&minus;). Minimale Edits, kein Strukturumbau.
   </div></div>
   <div class="conn"></div>
-  <div class="step"><div class="dot">A</div><div class="body">
-    <b>PHASE A.</b> Die ganze Mutter zum Kompilieren bringen (PIC, <code>-g3</code>) &mdash;
-    deterministischer Auto-Fix, dann KI-Syntax-Fix (read-only aus dem Hauptwrapper).
-  </div></div>
-  <div class="conn"></div>
-  <div class="step"><div class="dot g">B</div><div class="body">
-    <b>PHASE B &mdash; front-to-back.</b> Arm 0 verfeinern bis die Region im neu
-    kompilierten Mutter byte-exakt ist, dann <b>locken</b> und zu Arm 1 (Upstream bleibt
-    eingefroren). Nutzt dieselbe <code>dynamic_batch</code>-Maschinerie wie der
-    Hauptwrapper: Temperatur/Stagnation, Eskalation zu Batch, similar-seeded
-    Whole-Mother-Permuter als Fast-Lane. (<code>mother_match</code>, <code>mother_similar</code>)
-  </div></div>
-  <div class="conn"></div>
-  <div class="step"><div class="dot">W</div><div class="body">
-    <b>WRITE.</b> <code>mother.c</code>, pro Arm eine <code>.c</code>, und ein
-    <code>manifest.json</code> mit byte-exakten (C-Arm&nbsp;&harr;&nbsp;Ziel-Hex)-Paaren.
+  <div class="step"><div class="dot c">3</div><div class="body">
+    <b>logic2 &mdash; <code>focus=logic_struct</code>, Stufe&nbsp;2 net-gated.</b> Der
+    Abschluss-Closer: darf Logik <em>und</em> Struktur zugleich ändern (z.B. eine Konstante,
+    die nur durch eine umgebaute Anweisung passt), abgesichert durch ein Netto-Gate gegen
+    Verschlechterung. Catch-all &mdash; läuft auf <b>allen</b> Rest-Funktionen.
   </div></div>
 </div>
+<table>
+  <thead><tr><th>Stufe</th><th>focus</th><th>Domäne</th><th>Vorab-Routing</th></tr></thead>
+  <tbody>
+    <tr><td><code>struct</code></td><td><code>structure</code></td><td>Missing / Extra / Reordered / BLOCK</td>
+        <td>nur wenn struktureller Diff vorhanden</td></tr>
+    <tr><td><code>logic</code></td><td><code>logic</code></td><td>Typ ∪ Konstante ∪ Operator</td>
+        <td>nur wenn Logik-Diff vorhanden</td></tr>
+    <tr><td><code>logic2</code></td><td><code>logic_struct</code></td><td>Logik + Struktur (net-gated)</td>
+        <td>alle (Abschluss-Closer)</td></tr>
+  </tbody>
+</table>
 
-<h4>Zus&auml;tzlicher deterministischer Modus: <code>--split-asm</code></h4>
-<p>Exportiert pro Arm eine eigenst&auml;ndige byte-exakte Ziel-<code>.s</code> (keine KI),
-gespiegelt in der Zielhierarchie. Diese Arm-<code>.s</code> flie&szlig;en als neue Targets
-in <code>build_similar_asm_db.py</code> &mdash; so f&uuml;ttert der Mutter-Wrapper die
-&Auml;hnlichkeits-Wissensbasis des Hauptwrappers.</p>
+<!-- 5.3 -->
+<h3 id="phase2-cascade">5.3&nbsp;&nbsp;Die Kaskade &amp; das Vorab-Routing</h3>
+<pre><code>garbage → det → <span class="tok-fn">struct</span> → det → <span class="tok-fn">logic</span> → det → <span class="tok-fn">logic2</span> → det</code></pre>
+<p>Jede agentische Stufe (kursiv) bekommt die <b>volle Zeit</b>; dazwischen räumt ein
+deterministischer Pass auf, was der Agent aufgeschlossen hat (er ersetzt die feinkörnige
+Rückkopplung der alten Ein-Loop-Architektur, ohne Starvation). Vor einer gezielten Stufe
+prüft ein <b>Vorab-Routing</b>, ob ihre Domäne überhaupt im Diff steht &mdash; sonst wird sie
+ohne KI-Call übersprungen (<code>skip-na</code>). So überspringt eine reine Logik-Funktion
+garbage+struct und geht direkt zu logic.</p>
+
+<!-- 5.4 -->
+<h3 id="phase2-term">5.4&nbsp;&nbsp;Turns, Stufen &amp; Selbst-Terminierung</h3>
+<table>
+  <thead><tr><th>Begriff</th><th>Bedeutung</th><th>Abbruch</th></tr></thead>
+  <tbody>
+    <tr><td><b>Turn</b></td><td>ein KI-Call + kompilieren + bewerten innerhalb von <code>run()</code>.</td>
+        <td>nach <b>2× kein Fortschritt</b> (stale); Compile-Fehler <b>separat</b> gezählt
+        (cfail), zählen <em>nicht</em> in stale.</td></tr>
+    <tr><td><b>Stufe</b> (stage)</td><td>ein ganzer <code>run()</code>-Durchlauf;
+        <code>solve_recursive</code> ruft ihn mehrfach.</td>
+        <td>nächste Stufe <b>nur bei Fortschritt</b> (warm-weiter, Restlücken schließen); bei
+        Stillstand sofort Handoff &mdash; kein Blind-Re-Roll.</td></tr>
+  </tbody>
+</table>
+<div class="box info">
+  <span class="lab">Warum diese Trennung wichtig ist</span>
+  Compile-Fehler sind kein semantischer Stillstand &mdash; einen Fehler zu beheben <em>ist</em>
+  Fortschritt. Sie eigenständig zu zählen verhindert, dass der Agent eine reparierbare
+  Funktion vorzeitig aufgibt. Und Stufe&nbsp;2 läuft nur, wenn Stufe&nbsp;1 schon etwas
+  verbessert hat &mdash; das spart die teure Leerlauf-Runde, die sich sonst auf
+  hoffnungslosen Funktionen verdoppelte.
+</div>
+
+<!-- 5.5 -->
+<h3 id="phase2-tools">5.5&nbsp;&nbsp;Werkzeuge &amp; Halluzinations-Schutz</h3>
+<p>Der Engine hat read-only <b>Header-Tools</b> (<code>search</code>/<code>read</code>/<code>grep</code>):
+will er einen Struct-Feldtyp wissen, schlägt er ihn in den autoritativen Headern nach, statt
+zu raten. Findet er das Symbol nicht, ist sein Vorschlag halluziniert &mdash; das wird
+abgefangen. Das Reasoning wird per SSE-Streaming mitgelesen (Tuning der Prompts), aber nie in
+die nächste Nachricht zurückgespielt (kein Selbstkorrektur-Loop).</p>
 </section>
 
 <!-- ===================================================== 6 -->
-<section id="wissen">
-<h2 class="sec"><span class="n">6</span>Die Wissensbasis</h2>
-<p>Die Pipeline wird mit jedem L&ouml;sungserfolg besser. Zwei selbst aufgebaute
-Datenquellen leiten k&uuml;nftige &Uuml;bersetzungen:</p>
+<section id="betrieb">
+<h2 class="sec"><span class="n">6</span>Betrieb, Reproduzierbarkeit &amp; Skalierung</h2>
 
-<div class="grid2">
-  <div class="box info">
-    <span class="lab">Similar-ASM-DB</span>
-    <code>build_similar_asm_db.py</code> findet f&uuml;r jede Ziel-Funktion den
-    strukturell &auml;hnlichsten bereits gel&ouml;sten C-Code (Hex-Skeleton-Vergleich,
-    multiprocessing). Quellen: alle <code>perfect_matches</code> + handmatchende
-    Referenzen aus <code>data/refdata_original</code>. Ergebnis:
-    <code>data/similar_asm_db.jsonl</code> &mdash; aktuell <b>14&nbsp;641 Eintr&auml;ge</b>.
-  </div>
-  <div class="box info">
-    <span class="lab">Pattern-Cheatsheet</span>
-    <code>modules/cheatsheet.py</code> destilliert aus den <b>3&nbsp;146</b> perfect-match
-    C-Dateien wiederkehrende Muster (Entrypoint-Slots, Overlay-API-Nutzung, bekannte
-    Signaturen). Wird inkrementell bei jedem neuen Perfect Match aktualisiert und als
-    Kontext an den KI-Prompt angeh&auml;ngt.
-  </div>
-</div>
+<h4>Manuell komponierbar &amp; resumebar</h4>
+<p>Jede Phase und jede Stufe ist <b>einzeln aufrufbar</b>; der Zustand wird über Platte
+(<code>PIPELINE_WORK</code>) verkettet. So lässt sich ein Voll-Lauf über Nacht im eigenen
+Terminal fahren, zwischen Stufen der externe Permuter einschieben, und ein abgebrochener Lauf
+per <code>--skip N</code> reproduzierbar fortsetzen. Genau diese Isolierbarkeit macht die
+Pipeline <b>als Benchmark</b> nutzbar: jede Variante wird unter gleichen Bedingungen gemessen.</p>
 
-<h3>Zwei Wege, wie eine &auml;hnliche Referenz hilft</h3>
-<p>Sobald eine Referenz den &Auml;hnlichkeits-Schwellenwert (70&nbsp;% struct) rei&szlig;t,
-wird sie an <b>zwei</b> Stellen eingespeist &mdash; das ist der Kern des
-&bdquo;Lernens w&auml;hrend der Ausf&uuml;hrung&ldquo;:</p>
+<h4>Promotion in den Match-Kreislauf</h4>
 <table>
-  <thead><tr><th>Weg</th><th>Wie</th></tr></thead>
+  <thead><tr><th>Ergebnis</th><th>Ziel-Bucket</th></tr></thead>
   <tbody>
-    <tr><td><b>Similar-Injektion in den Hill-Climbing-Permuter</b></td>
-        <td>Der <code>micro_permuter</code> ist eine deterministische Bergsteiger-Suche
-        (Hill Climbing) &uuml;ber semantisch-&auml;quivalente C-Varianten. Statt nur vom
-        rohen Entwurf zu starten, bekommt er die &auml;hnliche L&ouml;sung als <b>Seed</b>
-        &mdash; er klettert also von einem bereits hohen Punkt los und findet den
-        byte-exakten Gipfel viel schneller. Greift bereits in Phase 0
-        (Cluster-Transplantat) und in der Fast-Lane.</td></tr>
-    <tr><td><b>Prompt-Injektion (<code>--similar</code>)</b></td>
-        <td>Dieselbe Referenz wird dem LLM als <em>strukturelle Vorlage</em> in den Prompt
-        gelegt: &bdquo;kopiere diese Code-Struktur und Typen&ldquo;. Das Muster einer echten,
-        bereits gematchten Funktion schl&auml;gt arithmetisches Raten. Der Kontext-Fahrplan
-        (<a href="#fahrplan">&sect;4.3</a>) kann sie pro Batch-Slot zu- und abschalten.</td></tr>
+    <tr><td>perfect (tier 0, mm 0)</td><td><code>output/perfect_matches/</code> &mdash; speist die Wissensbasis</td></tr>
+    <tr><td>permuter-ready (tier 1)</td><td><code>output/struct_matches/</code> &mdash; Ziel des externen Permuters</td></tr>
+    <tr><td>improved (Tupel gesunken)</td><td><code>output/partial_matches/</code> &mdash; bester Seed</td></tr>
+  </tbody>
+</table>
+
+<h4>Adaptiver Worker-Ramp</h4>
+<p><code>-j N</code> setzt feste Worker; <code>--max-j N</code> rampt adaptiv hoch, solange die
+CPU Luft hat. Einsicht aus der Messung: agentische Calls sind <b>I/O-gebunden</b> (~97&nbsp;%
+Warten auf den Pod) &mdash; nicht die lokale CPU ist das Limit, sondern der Pod-Durchsatz.
+Deterministische Phasen sind CPU-gebunden; der Ramp findet dort das CPU-Maximum.</p>
+
+<h4>Modell- &amp; Hardware-Wahl (gemessen, nicht geraten)</h4>
+<table>
+  <thead><tr><th>Frage</th><th>Messung / Entscheidung</th></tr></thead>
+  <tbody>
+    <tr><td>Quantisierung</td><td><b>FP8 ≈ BF16</b> bei ~3× Speed/Call; <b>NVFP4</b> halbierte die
+        Match-Rate (4-bit zu verlustbehaftet für präzisen C). → <b>FP8</b>.</td></tr>
+    <tr><td>Pod-Durchsatz</td><td>bei KV-Sättigung ist der <em>Gesamt</em>-Token-Durchsatz fix;
+        Parallelität sättigt den Pod, verkürzt aber die Drain-Zeit nicht weiter. Realer Hebel =
+        Tokens pro Funktion (Turns × Stufen).</td></tr>
+    <tr><td>1× Blackwell vs. 4× A6000</td><td>Blackwell &mdash; Per-Call-Speed kompoundiert im
+        sequentiellen Agent-Loop, ein Endpoint, native FP8.</td></tr>
   </tbody>
 </table>
 
 <div class="box key">
-  <span class="lab">Die selbstverst&auml;rkende Schleife &rarr; kritische Masse</span>
-  perfect match &rarr; speist Cheatsheet + Similar-DB &rarr; die n&auml;chste &auml;hnliche
-  Funktion startet mit besserer Referenz (Permuter-Seed <em>und</em> Prompt-Vorlage)
-  &rarr; l&ouml;st oft schon in Phase 0 ohne KI &rarr; neuer perfect match.
-  <b>Je mehr Funktionen &uuml;bersetzt sind, desto st&auml;rker profitiert die Pipeline.</b>
-  Ab einer <b>kritischen Masse</b> deckt die Wissensbasis so viele ASM-Cluster ab, dass
-  sich neue, &auml;hnliche Funktionen nahezu von selbst l&ouml;sen &mdash; der Agent
-  trainiert sich praktisch w&auml;hrend des Laufs selbst.
+  <span class="lab">Momentaufnahme eines laufenden Phase-2-Laufs</span>
+  <span class="muted" style="font-weight:400">stage <code>struct</code>, 224 parallele Worker, FP8-Pod &mdash; Zwischenstand:</span>
+  <div class="stat">
+    <div class="s"><b>93</b><span>perfect matches</span></div>
+    <div class="s"><b>18</b><span>permuter-ready</span></div>
+    <div class="s"><b>1089</b><span>improved</span></div>
+    <div class="s"><b>~46%</b><span>der bearbeiteten Fkt verbessert</span></div>
+  </div>
+  <span class="muted" style="font-size:13px">Nur die <em>struct</em>-Stufe &mdash; logic/logic2
+  und der deterministische Nachlauf über die verbesserten Partials kommen noch obendrauf.</span>
 </div>
 </section>
 
 <!-- ===================================================== 7 -->
-<section id="module">
-<h2 class="sec"><span class="n">7</span>Modul-Referenz</h2>
+<section id="gelernt">
+<h2 class="sec"><span class="n">7</span>Gelernt aus der ersten Generation</h2>
+<p>v2 verwirft v1 nicht &mdash; es <b>baut darauf auf</b>. Die
+<a href="Pipeline_README.html">v1-Pipeline</a> (<code>0_wrapper.py</code> +
+<code>1_wrapper_mother.py</code>) lieferte die Bausteine und die Lehren, die diese Generation
+prägen:</p>
 <table>
-  <thead><tr><th>Datei</th><th>Rolle</th></tr></thead>
+  <thead><tr><th>Aus v1 übernommen</th><th>In v2 weitergeführt</th></tr></thead>
   <tbody>
-    <tr><td><code>0_wrapper.py</code></td><td><b>Hauptpipeline-Orchestrierer.</b>
-      Phasen 0/A/B-C, Batch-Runner, CLI, Kategorisierung, Resume.</td></tr>
-    <tr><td><code>1_wrapper_mother.py</code></td><td><b>Mutter-Wrapper.</b>
-      Seed/Gate/Phase-A/Phase-B-front-to-back, ASM-Split-Export.</td></tr>
-    <tr><td><code>modules/ido_compiler.py</code></td><td>Treiber f&uuml;r GCC-Pr&auml;prozessor
-      + IDO 5.3 <code>cc</code>; Header-DB, Include-Aufl&ouml;sung, deterministische Auto-Fixes.</td></tr>
-    <tr><td><code>modules/ido_comparison.py</code></td><td>Wasserdichte .o-vs-.o-Bewertung
-      (<code>match_rate</code> / <code>struct_score</code>), Ziel-Assemblierung + Cache.</td></tr>
-    <tr><td><code>modules/diff_generator.py</code></td><td>Erzeugt das LLM-freundliche
-      JSON-Diff (Stack-Frame, fehlende/zus&auml;tzliche Instruktionen, Register, Immediates).</td></tr>
-    <tr><td><code>modules/ai_agent.py</code></td><td>LLM-Schnittstelle: Modi, Multi-Turn,
-      Kontext-Fahrplan, Best-of-N-Batch, Modell-Familien (Qwen3/Gemma4), 3 Backends.</td></tr>
-    <tr><td><code>modules/micro_permuter.py</code></td><td>Pass-basierter Permuter
-      (Regex + pycparser-AST), Beam-Suche, Compile-Cache, KI-Report. Auch Rescue/Transplant.</td></tr>
-    <tr><td><code>modules/cheatsheet.py</code></td><td>Pattern-Extraktion aus
-      perfect_matches + Laden der Similar-DB + Prompt-Kontext-Erzeugung.</td></tr>
-    <tr><td><code>modules/session.py</code></td><td>Persistenz pro Funktion: bester Code/Score,
-      Verlauf, Duplikat-Erkennung. &Uuml;berlebt Neustarts.</td></tr>
-    <tr><td><code>modules/streaming.py</code></td><td>HTTP-Streaming f&uuml;r Thinking-Calls
-      (gegen 524-Timeouts), optionales Live-Debug der Reasoning-Streams.</td></tr>
-    <tr><td><code>modules/live_view.py</code></td><td>Rich-basiertes Live-Panel
-      (<code>--live</code>) zur Verlaufsanzeige w&auml;hrend des Laufs.</td></tr>
-    <tr><td><code>modules/mother_seed.py</code></td><td>m2c-Dekompilierung der Mutter +
-      Arm-Splitting (geteilt mit dem bewiesenen Splitter-Harness).</td></tr>
-    <tr><td><code>modules/mother_match.py</code></td><td>PIC compile-in-mother-Backend:
-      Region-Cut &uuml;ber Zeilen-Map, Arm-Diff, <code>evaluate_mother</code>.</td></tr>
-    <tr><td><code>modules/mother_similar.py</code></td><td>Br&uuml;cke zu Similar/Cheatsheet
-      + validierter Permuter-Pass auf Mutter-Granularit&auml;t.</td></tr>
-    <tr><td><code>modules/mother_common.py</code></td><td>Gemeinsame Arm-/C-Parsing-Hilfen.</td></tr>
-    <tr><td><code>build_similar_asm_db.py</code></td><td>Baut die &Auml;hnlichkeits-DB
-      (multiprocessing, Hex-Cache).</td></tr>
-    <tr><td><code>generate_cheatsheet.py</code></td><td>CLI: Full-Rebuild des Cheatsheets
-      aus allen perfect_matches.</td></tr>
-    <tr><td><code>find_missing_c.py</code></td><td>Hilfsskript: noch nicht
-      &uuml;bersetzte Funktionen ermitteln.</td></tr>
+    <tr><td>Wasserdichtes <code>.o</code>-vs-<code>.o</code>-Match-Kriterium</td>
+        <td>unverändert die Wahrheit &mdash; jetzt Basis der mehrstufigen Metrik.</td></tr>
+    <tr><td>Determinismus vor KI; Permuter als Fast-Lane</td>
+        <td>zur ganzen <b>Phase 1</b> ausgebaut (erschöpfend, fristlos).</td></tr>
+    <tr><td>Selbstlernende Wissensbasis (Similar-DB, Cheatsheet)</td>
+        <td>speist Phase-0-Transplant + Frankenstein-Fragment-DB.</td></tr>
+    <tr><td>Adaptive Eskalation statt fester Budgets</td>
+        <td>als domänen- und fortschritts-getriebene Stufen-Kaskade.</td></tr>
+    <tr><td>Aufgaben-Zerlegung (Mutter→Arme)</td>
+        <td>konzeptionell gespiegelt in der Domänen-Zerlegung des Diffs.</td></tr>
   </tbody>
 </table>
+<div class="box bad">
+  <span class="lab">Die eine entscheidende Lehre</span>
+  Der Engpass war nicht das Modell, sondern die <b>Kopplung</b>: ein gemeinsames Zeitbudget
+  ließ den schnellen, sicheren Determinismus den mächtigen, langsamen Agenten aushungern. v2
+  ist die direkte Antwort darauf &mdash; und entstand aus dem <em>Messen</em> dieses Effekts,
+  nicht aus einer Ahnung.
+</div>
 </section>
 
 <!-- ===================================================== 8 -->
-<section id="usage">
-<h2 class="sec"><span class="n">8</span>Benutzung</h2>
-<div class="box warn">
-  <span class="lab">WSL-Pflicht</span>
-  Der IDO <code>cc</code> ist ein Linux-Bin&auml;r und l&auml;uft nur in <b>WSL</b>. Vor dem
-  Lauf das LLM-Backend konfigurieren (<code>LOCAL_API_BASE</code>, <code>LOCAL_API_KEY</code>,
-  <code>LOCAL_MODEL</code>; siehe <code>0_docs.md</code>) bzw. <code>DASHSCOPE_API_KEY</code>.
-</div>
-
-<h4>Hauptpipeline (0_wrapper)</h4>
-<pre><code><span class="tok-com"># Standardlauf: oneshot, 1 Worker</span>
-python3 0_wrapper.py --input data/c_input --target-asm data/target_asm
-
-<span class="tok-com"># Mit Wissensbasis, adaptivem Batch, 8 Workern, Resume</span>
-python3 0_wrapper.py --cheatsheet --dynamic-batch --dynamic-compiler -j8 --resume
-
-<span class="tok-com"># Cluster-Scan ganz ohne KI (0 Tokens) — nur Determinismus + Permuter</span>
-python3 0_wrapper.py --no-ai -j8
-
-<span class="tok-com"># Live-Ansicht (erzwingt -j1)</span>
-python3 0_wrapper.py --thinking --streaming --live</code></pre>
-
-<h4>Mutter-Wrapper (1_wrapper_mother)</h4>
-<pre><code><span class="tok-com"># Mutter-.s nach data/target_asm/mother_functions/ legen, dann:</span>
-python3 1_wrapper_mother.py --similar --dynamic-batch
-
-<span class="tok-com"># Deterministisch (keine KI): nur Seed + Compile + Baseline-Arm-Slices</span>
-python3 1_wrapper_mother.py --seed-only
-
-<span class="tok-com"># ASM-Split-Export für die Similar-DB (deterministisch)</span>
-python3 1_wrapper_mother.py --split-asm</code></pre>
-
-<h4>Wissensbasis pflegen</h4>
-<pre><code>python3 generate_cheatsheet.py        <span class="tok-com"># Cheatsheet aus perfect_matches neu bauen</span>
-python3 build_similar_asm_db.py -j4    <span class="tok-com"># Similar-ASM-DB (neu) bauen</span></code></pre>
-</section>
-
-<!-- ===================================================== 9 -->
-<section id="layout">
-<h2 class="sec"><span class="n">9</span>Verzeichnis-Layout</h2>
-<pre class="filetree">IDO_agent_pipeline/
-├─ 0_wrapper.py              <span class="c"># ← Hauptpipeline (erprobt)</span>
-├─ 1_wrapper_mother.py       <span class="c"># ← Mutter-Wrapper (Splitter-basiert)</span>
-├─ build_similar_asm_db.py   <span class="c"># Similar-ASM-DB Builder</span>
-├─ generate_cheatsheet.py    <span class="c"># Cheatsheet Builder (CLI)</span>
-├─ Splitter_README.html      <span class="c"># Grundlage des Mutter-Wrappers</span>
-├─ Pipeline_README.html      <span class="c"># dieses Dokument</span>
-├─ <span class="d">IDO_compiler/</span>            <span class="c"># IDO 5.3 Toolchain (cc, as0/1, ld, ...)</span>
-├─ <span class="d">modules/</span>                <span class="c"># gemeinsame Bibliothek</span>
-│   ├─ ido_compiler.py · ido_comparison.py · diff_generator.py
-│   ├─ ai_agent.py · micro_permuter.py · cheatsheet.py · session.py
-│   ├─ streaming.py · live_view.py
-│   ├─ mother_seed.py · mother_match.py · mother_similar.py · mother_common.py
-│   └─ <span class="d">decomp-permuter/</span>     <span class="c"># externer Permuter (Referenz/Weights)</span>
-├─ <span class="d">data/</span>
-│   ├─ <span class="d">c_input/</span>            <span class="c"># C-Entwürfe (Eingabe Hauptpipeline)</span>
-│   ├─ <span class="d">target_asm/</span>         <span class="c"># Ziel-.s  (+ mother_functions/, mother_split/)</span>
-│   ├─ <span class="d">tech_env/</span>           <span class="c"># pro Funktion: Typen/Stack/Calls (JSON)</span>
-│   ├─ <span class="d">header/</span>             <span class="c"># Header-Hierarchie für den Präprozessor</span>
-│   ├─ <span class="d">refdata_original/</span>   <span class="c"># handmatchende Referenz-C (für die Similar-DB)</span>
-│   ├─ <span class="d">session/</span>            <span class="c"># Persistenz pro Funktion (Resume)</span>
-│   ├─ similar_asm_db.jsonl  <span class="c"># 14.641 Ähnlichkeits-Einträge</span>
-│   ├─ cheatsheet.md · cheatsheet_cache.json
-│   └─ asm_headers_mapped.jsonl
-└─ <span class="d">output/</span>
-    ├─ <span class="d">perfect_matches/</span>    <span class="c"># match 100% (byte-exakt)  — speist Wissensbasis</span>
-    ├─ <span class="d">struct_matches/</span>     <span class="c"># struct 100% (Rest Relocations)</span>
-    ├─ <span class="d">partial_matches/</span>    <span class="c"># kompilierbarer Seed für externen Permuter</span>
-    └─ permuter_*.log</pre>
-</section>
-
-<!-- ===================================================== 10 -->
-<section id="stack">
-<h2 class="sec"><span class="n">10</span>Tech-Stack</h2>
+<section id="module">
+<h2 class="sec"><span class="n">8</span>Modul-Referenz</h2>
 <table>
-  <thead><tr><th>Baustein</th><th>Verwendung</th></tr></thead>
+  <thead><tr><th>Datei</th><th>Rolle</th></tr></thead>
   <tbody>
-    <tr><td><b>IDO 5.3 <code>cc</code></b></td><td>der originale SGI-MIPS-Compiler &mdash;
-      die Referenz, die getroffen werden muss.</td></tr>
-    <tr><td><b>mips-linux-gnu binutils</b></td><td><code>objdump</code> (Disassembly/Reloc),
-      <code>gcc</code> als Assembler f&uuml;r die Ziel-<code>.o</code>.</td></tr>
-    <tr><td><b>m2c (mips_to_c)</b></td><td>Dekompiler: gewinnt das Mutter-Ger&uuml;st +
-      Arm-Erstentw&uuml;rfe aus der ASM zur&uuml;ck.</td></tr>
-    <tr><td><b>decomp-permuter</b></td><td>semantisch-&auml;quivalente C-Varianten
-      durchprobieren &mdash; Endgame-Fallback pro Funktion/Arm.</td></tr>
-    <tr><td><b>LLM (vLLM/DashScope/Claude)</b></td><td>Qwen3- bzw. Gemma4-Familie als
-      &bdquo;&Uuml;bersetzer&ldquo;, OpenAI-kompatibel angebunden; eigene N64-Decomp-
-      Feinabstimmung m&ouml;glich.</td></tr>
-    <tr><td><b>Python 3.12</b></td><td>Orchestrierung, <code>ThreadPoolExecutor</code> /
-      <code>multiprocessing</code>, <code>pycparser</code>, <code>rich</code>, <code>tqdm</code>.</td></tr>
-    <tr><td><b>WSL (Ubuntu)</b></td><td>Laufzeitumgebung f&uuml;r die Linux-Toolchain.</td></tr>
+    <tr><td><code>ping_pong_wrapper.py</code></td><td><b>Phase 1.</b> <code>orchestrate</code>
+      (Vorflug + Ping-Pong), Symptom-Routing, Batch-Runner, Metrik (<code>_EV_SYNTH</code>).</td></tr>
+    <tr><td><code>agentic_tooling.py</code></td><td><b>Phase 2.</b> Kaskade, Domänen-Routing,
+      Zustands-Verkettung, Writeback, adaptiver Ramp, <code>--skip</code>, Pod-Auto-Detect.</td></tr>
+    <tr><td><code>modules/agent_engine.py</code></td><td><b>Generischer LLM-Engine.</b>
+      <code>run</code>/<code>solve_recursive</code>, Foki structure/logic/logic_struct,
+      Domänen-Detektoren, stale/cfail-Terminierung, Header-Tools.</td></tr>
+    <tr><td><code>modules/expert_*.py</code></td><td><b>Deterministische Experten:</b>
+      immediate, instr_width, instr_op, memory_offset, register_order, reorder, stack_frame,
+      extra_code, missing_block, frankenstein, garbage, compile_fix.</td></tr>
+    <tr><td><code>modules/ido_compiler.py</code></td><td>IDO-5.3-Treiber + Präprozessor,
+      Header-DB, deterministische Auto-Fixes. <b>(Orakel-sicher: compile→cleanup.)</b></td></tr>
+    <tr><td><code>modules/ido_comparison.py</code></td><td>Wasserdichte <code>.o</code>-vs-<code>.o</code>-Bewertung
+      (tier/mm), Permuter-Finishable-Check, Ziel-Cache.</td></tr>
+    <tr><td><code>modules/diff_generator.py</code></td><td>LLM-freundlicher JSON-Diff
+      (Symptom-Typen, fehlende/extra Instruktionen, Register, Immediates).</td></tr>
+    <tr><td><code>modules/header_tools.py</code></td><td>Read-only Header-Suche für den Agenten
+      (echte Feldtypen → Halluzinations-Schutz).</td></tr>
+    <tr><td><code>modules/m2c_donor.py</code></td><td>m2c als deterministischer Synthese-Donor
+      (Pseudocode-Plan, bereinigte Transplantate).</td></tr>
+    <tr><td><code>build_fragment_asm_db.py</code> / <code>build_similar_asm_db.py</code></td>
+        <td>Multi-Donor- bzw. Ähnlichkeits-Wissensbasis (Set-Cover / Hex-Skeleton).</td></tr>
   </tbody>
 </table>
 </section>
 
+<!-- ===================================================== 9 -->
+<section id="usage">
+<h2 class="sec"><span class="n">9</span>Benutzung</h2>
+<div class="box warn">
+  <span class="lab">WSL-Pflicht &amp; Pod-Setup</span>
+  Der IDO <code>cc</code> ist ein Linux-Binär und läuft nur in <b>WSL</b>. Phase 2 braucht
+  einen Pod: <code>export LOCAL_API_BASE=…</code> / <code>LOCAL_API_KEY=…</code> (das Modell
+  wird automatisch aus <code>/v1/models</code> erkannt; Config wird in <code>pod.json</code>
+  persistiert). Phase 1 braucht <b>keinen</b> Pod.
+</div>
+
+<h4>Phase 1 &mdash; Determinismus (ohne KI)</h4>
+<pre><code><span class="tok-com"># Erschöpfender deterministischer Lauf über alle Funktionen, adaptiver Ramp</span>
+PIPELINE_WORK=run1 PYTHONPATH=. python3 agentic_tooling.py phase1 --max-j 64</code></pre>
+
+<h4>Phase 2 &mdash; Agentic Tooling (mit Pod)</h4>
+<pre><code><span class="tok-com"># Voll-automatische Kaskade auf die offenen (tier-2) Funktionen</span>
+PIPELINE_WORK=run1 PYTHONPATH=. python3 agentic_tooling.py phase2 --max-j 224
+
+<span class="tok-com"># Manuell, Stufe für Stufe (eine Stufe atomar) — z.B. nur struct, ab Funktion 700</span>
+PIPELINE_WORK=run1 PYTHONPATH=. python3 agentic_tooling.py stage struct --skip 700 --max-j 224
+PIPELINE_WORK=run1 PYTHONPATH=. python3 agentic_tooling.py stage det
+PIPELINE_WORK=run1 PYTHONPATH=. python3 agentic_tooling.py stage logic --max-j 224
+
+<span class="tok-com"># Tier-Zusammenfassung des aktuellen Zustands</span>
+PIPELINE_WORK=run1 PYTHONPATH=. python3 agentic_tooling.py status</code></pre>
+</section>
+
+<!-- ===================================================== 10 -->
+<section id="layout">
+<h2 class="sec"><span class="n">10</span>Verzeichnis-Layout</h2>
+<pre class="filetree">IDO_agent_pipeline/
+├─ ping_pong_wrapper.py      <span class="c"># ← Phase 1: deterministisches Experten-Ping-Pong</span>
+├─ agentic_tooling.py        <span class="c"># ← Phase 2: domänenabhängige agentische Kaskade</span>
+├─ 0_wrapper.py              <span class="c"># v1-Hauptpipeline (gelernt aus / Referenz)</span>
+├─ 1_wrapper_mother.py       <span class="c"># v1-Mutter-Wrapper (gelernt aus)</span>
+├─ build_fragment_asm_db.py  <span class="c"># Multi-Donor-Fragment-DB (Frankenstein)</span>
+├─ build_similar_asm_db.py   <span class="c"># Ähnlichkeits-DB</span>
+├─ Pipeline_v2_README.html   <span class="c"># dieses Dokument</span>
+├─ Pipeline_README.html      <span class="c"># v1-README (Vorgänger)</span>
+├─ <span class="d">modules/</span>                <span class="c"># gemeinsame Bibliothek</span>
+│   ├─ ido_compiler.py · ido_comparison.py · diff_generator.py
+│   ├─ agent_engine.py · header_tools.py · m2c_donor.py
+│   ├─ expert_immediate.py · expert_instr_width.py · expert_instr_op.py
+│   ├─ expert_memory_offset.py · expert_register_order.py · expert_reorder.py
+│   ├─ expert_stack_frame.py · expert_extra_code.py · expert_missing_block.py
+│   ├─ expert_garbage.py · expert_frankenstein.py · expert_compile_fix.py
+│   └─ <span class="d">decomp-permuter/</span>     <span class="c"># externer Permuter</span>
+├─ <span class="d">data/</span>
+│   ├─ <span class="d">c_input/</span> · <span class="d">target_asm/</span> · <span class="d">tech_env/</span> · <span class="d">header/</span>
+│   ├─ similar_asm_db.jsonl · fragment_asm_db.jsonl · cheatsheet.md
+│   └─ <span class="d">_pipeline_work/</span> (PIPELINE_WORK)  <span class="c"># code/&lt;fn&gt;.c · meta/&lt;fn&gt;.json · pod.json</span>
+└─ <span class="d">output/</span>
+    ├─ <span class="d">perfect_matches/</span>    <span class="c"># tier 0 — speist die Wissensbasis</span>
+    ├─ <span class="d">struct_matches/</span>     <span class="c"># tier 1 — Permuter-Ziel</span>
+    └─ <span class="d">partial_matches/</span>    <span class="c"># improved — bester Seed</span></pre>
+</section>
+
 <!-- ===================================================== 11 -->
-<section id="glossar">
-<h2 class="sec"><span class="n">11</span>Glossar</h2>
+<section id="stack">
+<h2 class="sec"><span class="n">11</span>Tech-Stack</h2>
 <table>
-  <thead><tr><th>Term</th><th>Erkl&auml;rung</th></tr></thead>
+  <thead><tr><th>Baustein</th><th>Verwendung</th></tr></thead>
+  <tbody>
+    <tr><td><b>IDO 5.3 <code>cc</code></b></td><td>der originale SGI-MIPS-Compiler &mdash; die
+      Referenz, die byte-exakt getroffen werden muss.</td></tr>
+    <tr><td><b>mips-linux-gnu binutils</b></td><td><code>objdump</code> (Disassembly/Reloc),
+      Assembler für die Ziel-<code>.o</code>.</td></tr>
+    <tr><td><b>m2c (mips_to_c)</b></td><td>Dekompiler: Pseudocode-Plan + Transplant-Donor.</td></tr>
+    <tr><td><b>decomp-permuter</b></td><td>semantisch-äquivalente C-Varianten &mdash;
+      Endgame-Fallback für tier-1.</td></tr>
+    <tr><td><b>LLM (vLLM, OpenAI-kompatibel)</b></td><td>Qwen3.6-35B-A3B (FP8) als
+      domänenfokussierter Agent; lokal auf gemieteter GPU (RunPod).</td></tr>
+    <tr><td><b>Python 3.12</b></td><td>Orchestrierung, <code>ThreadPoolExecutor</code> /
+      <code>ProcessPool</code>, <code>pycparser</code>, SSE-Streaming.</td></tr>
+    <tr><td><b>WSL (Ubuntu)</b></td><td>Laufzeitumgebung für die Linux-Toolchain.</td></tr>
+  </tbody>
+</table>
+</section>
+
+<!-- ===================================================== 12 -->
+<section id="glossar">
+<h2 class="sec"><span class="n">12</span>Glossar</h2>
+<table>
+  <thead><tr><th>Term</th><th>Erklärung</th></tr></thead>
   <tbody>
     <tr><td><b>Match / byte-exakt</b></td><td>Der kompilierte C erzeugt exakt dieselben
-      Maschinenbytes wie das Ziel-ROM. Das Endziel jeder Funktion.</td></tr>
-    <tr><td><b>match_rate</b></td><td>Anteil byte-identischer Instruktionen inkl. korrekter
-      Relocations (100&nbsp;% = perfekt).</td></tr>
-    <tr><td><b>struct_score</b></td><td>Struktureller &Auml;hnlichkeitsscore, robust gegen
-      Relocations; 100&nbsp;% bei match&nbsp;&lt;&nbsp;100&nbsp;% = nur Relocations offen.</td></tr>
-    <tr><td><b>Relocation</b></td><td>Platzhalter f&uuml;r noch nicht aufgel&ouml;ste Adressen
-      (<code>%hi/%lo/jal</code>); werden &uuml;ber Symbol+Typ verglichen, nicht &uuml;ber Hex.</td></tr>
-    <tr><td><b>PIC / non-PIC</b></td><td>Position Independent Code. Der Mutter-Wrapper
-      kompiliert PIC, der Hauptwrapper non-PIC (<code>-non_shared</code>); die Differenz
-      wird im Vergleich &uuml;berbr&uuml;ckt.</td></tr>
-    <tr><td><b>TechEnv</b></td><td>Pro-Funktion-Metadaten (JSON): Typen, Stack-Frame,
-      Saved-Register, Calls, inferierte Argumente &mdash; teils <em>harte Fakten</em>,
-      teils <em>Inferenzen</em>.</td></tr>
-    <tr><td><b>Cheatsheet</b></td><td>aus perfect_matches destillierte wiederkehrende
-      C-Muster, als Prompt-Kontext.</td></tr>
-    <tr><td><b>Similar-DB</b></td><td>pro Ziel der strukturell &auml;hnlichste gel&ouml;ste
-      C-Code &mdash; Quelle f&uuml;r Phase 0, Permuter-Seed und Prompt-Injektion.</td></tr>
-    <tr><td><b>Mutter / Arm</b></td><td>Mutter = gro&szlig;e Zielfunktion; Arm = maximale
-      Folge von Payload-Anweisungen ohne eigene Kontrollstruktur.</td></tr>
-    <tr><td><b>Thinking Preservation</b></td><td>Qwen3-Multi-Turn-Technik: Reasoning bleibt
-      lokal, wird aber nie in die n&auml;chste API-Nachricht zur&uuml;ckgespielt.</td></tr>
-    <tr><td><b>Permuter</b></td><td>probiert semantisch gleichwertige C-Varianten durch, um
-      Byte-Matches zu finden.</td></tr>
+      Maschinenbytes wie das Ziel-ROM (tier 0, mm 0).</td></tr>
+    <tr><td><b>Prioritäts-Metrik</b></td><td>lexikografisches 7-Tupel
+      <code>(md,&nbsp;p1,&nbsp;p2,&nbsp;p3,&nbsp;p4,&nbsp;tier,&nbsp;mm)</code> &mdash; ordnet
+      Fortschritt nach Symptom-Schwere.</td></tr>
+    <tr><td><b>md</b></td><td>Zahl fehlender Ziel-Instruktionen im Entwurf.</td></tr>
+    <tr><td><b>tier</b></td><td>0 perfekt · 1 permuter-fertig (nur reine Reg-Allokation offen) ·
+      2 offen.</td></tr>
+    <tr><td><b>mm</b></td><td>Zahl abweichender Bytes.</td></tr>
+    <tr><td><b>Fix-Domäne</b></td><td>Klasse von Diff-Symptomen, die ein Experte/Fokus schließt
+      (Struktur, Typ, Konstante, Operator, Frame …).</td></tr>
+    <tr><td><b>Ping-Pong</b></td><td>Phase-1-Schleife, die den Diff klassifiziert und
+      symptom-spezialisierte Experten abwechselnd ansetzt.</td></tr>
+    <tr><td><b>Kaskade</b></td><td>Phase-2-Stufenfolge
+      garbage→det→struct→det→logic→det→logic2→det pro Funktion.</td></tr>
+    <tr><td><b>Turn / Stufe</b></td><td>Turn = 1 KI-Call+compile+bewerten; Stufe = ein ganzer
+      <code>run()</code>-Durchlauf (mehrfach via <code>solve_recursive</code>).</td></tr>
+    <tr><td><b>stale / cfail</b></td><td>Stillstand-Zähler (Abbruch 2×) bzw. separater
+      Compile-Fehler-Zähler &mdash; Compile-Fehler sind kein Stillstand.</td></tr>
+    <tr><td><b>Relocation</b></td><td>Platzhalter für noch nicht aufgelöste Adressen
+      (<code>%hi/%lo/jal</code>); über Symbol+Typ verglichen, nicht über Hex.</td></tr>
+    <tr><td><b>Frankenstein</b></td><td>Multi-Donor-Transplant: fügt Fragmente mehrerer
+      gelöster Funktionen per Set-Cover zusammen.</td></tr>
   </tbody>
 </table>
 </section>
 
 <hr>
 <p class="muted" style="font-size:13px">
-  Banjo-Tooie Decompilation &middot; IDO Agent Pipeline &middot; Stand 2026-06-01 &middot;
-  Technische README f&uuml;r <code>IDO_agent_pipeline</code>.
-  Erg&auml;nzend: <a href="Splitter_README.html">Alt-Splitter README</a> (Grundlage des Mutter-Wrappers).
+  Banjo-Tooie Decompilation &middot; Zwei-Phasen-Pipeline (v2) &middot; Stand 2026-06-23 &middot;
+  Technische README für <code>IDO_agent_pipeline</code>.
+  Vorgänger &amp; Grundlage: <a href="Pipeline_README.html">v1-README</a>
+  (gelernt aus &mdash; Determinismus-vor-KI, Wissensbasis, .o-vs-.o-Match).
 </p>
 </main>
 </div>
