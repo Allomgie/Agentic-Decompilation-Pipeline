@@ -54,7 +54,7 @@ class _CompileCache:
                 self._results[h] = (-1.0, label)
                 return -1.0
             gen_skel = ido_comparison.build_skeleton(gen_words)
-            score = SequenceMatcher(None, target_skel, gen_skel).ratio() * 100.0
+            score = SequenceMatcher(None, target_skel, gen_skel, autojunk=False).ratio() * 100.0  # autojunk=False: >=200 Worte sonst verfaelscht
             self.stats["ido_ok"] += 1
             self._results[h] = (score, label)
             return score
@@ -950,6 +950,285 @@ def run_rescue(c_code, func_name, target_s_path, similar_ref):
 
 
 # =====================================================================
+# TARGET-GEFUEHRTE SYMBOL-/OFFSET-REPARATUR
+# =====================================================================
+# Anwendungsfall: Eine Funktion ist "struct-aehnlich" aber NICHT permuter-
+# finishable, weil sie das FALSCHE Global-Symbol oder den falschen Offset
+# referenziert (haeufig bei m2c-Drafts: Setter/Getter auf ein falsch geratenes
+# D_-Symbol). Solche Fehler kann der Permuter NICHT beheben (er erfindet keine
+# Symbole/Konstanten) — aber die assemblierte Target-.o KENNT die richtigen
+# Werte. Wir lesen Symbol + Offset + Zugriffstyp aus der Target-.o und schreiben
+# den C-Code darauf um. Verifiziert via evaluate_match -> nur ein Kandidat, der
+# wirklich 100% (oder permuter-finishable) trifft, wird zurueckgegeben.
+
+_LS_TYPE = {
+    "lb": "s8", "lbu": "u8", "sb": "u8", "lh": "s16", "lhu": "u16", "sh": "u16",
+    "lw": "s32", "sw": "s32", "lwc1": "f32", "swc1": "f32",
+    "ldc1": "f64", "sdc1": "f64",
+}
+_IMM_PAREN = re.compile(r",\s*(-?0x[0-9A-Fa-f]+|-?\d+)\s*\(")
+_IMM_TAIL = re.compile(r"(-?0x[0-9A-Fa-f]+|-?\d+)\s*$")
+
+
+def _ls_immediate(ops):
+    """Numerisches Immediate (Offset/Addend) aus objdump-Operanden ziehen:
+    'reg, 0x24($at)' -> 0x24 ; 'reg, 0' -> 0."""
+    m = _IMM_PAREN.search(ops)
+    if m:
+        return int(m.group(1), 0)
+    tail = ops.rsplit(",", 1)
+    if len(tail) == 2:
+        m = _IMM_TAIL.match(tail[1].strip())
+        if m:
+            return int(m.group(1), 0)
+    return 0
+
+
+def _ls_refs(insns):
+    """Geordnete Load/Store-Reloc-Referenzen (symbol, offset, c_type). Nur
+    Instruktionen, die das LO16-Reloc UND den Offset tragen (die haeufige Form
+    'lui hi; <load/store> lo(reg)'). HI16/jal/reine addiu-Adressberechnung werden
+    ausgelassen -> v1 deckt skalare Globals ab."""
+    out = []
+    for w in insns:
+        if not w["reloc"]:
+            continue
+        parts = w["reloc"].split()
+        if len(parts) < 2 or parts[0] != "R_MIPS_LO16":
+            continue
+        if w["mnem"] not in _LS_TYPE:
+            continue
+        out.append((parts[1].split("+")[0], _ls_immediate(w["ops"]), _LS_TYPE[w["mnem"]]))
+    return out
+
+
+def _jal_refs(insns):
+    """Geordnete Liste der aufgerufenen Funktionssymbole (R_MIPS_26 / jal)."""
+    out = []
+    for w in insns:
+        if not w["reloc"]:
+            continue
+        parts = w["reloc"].split()
+        if len(parts) >= 2 and parts[0] == "R_MIPS_26":
+            out.append(parts[1].split("+")[0])
+    return out
+
+
+# Eine Deklarationszeile (kein Statement!): optional extern, Typ-Tokens, Symbol,
+# optional LEERE oder numerische [] (Array-Decl), Semikolon. Statement-Keywords
+# werden ausgeschlossen, damit z.B. 'return D_X[param_0];' NICHT als Deklaration
+# missgedeutet wird; nicht-numerische Klammern (Index) ebenfalls nicht.
+_DECL_LINE = (r"^[ \t]*(?!(?:return|if|while|for|switch|else|do|goto)\b)"
+              r"(?:extern[ \t]+)?[A-Za-z_][\w \t\*]*\b{sym}\b"
+              r"[ \t]*(?:\[[ \t]*\d*[ \t]*\])?[ \t]*;[ \t]*$")
+
+
+def run_symbol_repair(c_code, func_name, target_s_path):
+    """Liest aus der Target-.o das korrekte Symbol+Offset+Typ jeder Load/Store-
+    Reloc-Referenz und schreibt den C-Code um. Verifiziert mit evaluate_match.
+
+    Returns dict: compiled(bool), fixed(bool=100%/finishable), best_c_code,
+    match_rate, struct_score, report.
+    """
+    res = {"compiled": False, "fixed": False, "best_c_code": c_code,
+           "match_rate": 0.0, "struct_score": 0.0, "report": ""}
+
+    comp = ido_compiler.compile_code(c_code, func_name)
+    if not comp.get("success"):
+        return res
+    tgt_o = ido_comparison._assemble_target_o(target_s_path)
+    if not tgt_o:
+        ido_compiler.cleanup_temp(comp["temp_dir"])
+        return res
+    d_ins = ido_comparison._objdump_insns(comp["temp_o_path"])
+    t_ins = ido_comparison._objdump_insns(tgt_o)
+    d_refs, t_refs = _ls_refs(d_ins), _ls_refs(t_ins)
+    d_jals, t_jals = _jal_refs(d_ins), _jal_refs(t_ins)
+    ido_compiler.cleanup_temp(comp["temp_dir"])
+
+    from collections import Counter
+
+    # --- Daten-Load/Store-Refs (Symbol + Offset + Typ) ---
+    # Nur wenn sich das (Symbol,Offset)-MULTISET unterscheidet — bei reinem
+    # Reordering (gleiches Multiset) ist es Scheduling (permuter-finishable),
+    # NICHT reparieren.
+    mapping = {}
+    if (d_refs and len(d_refs) == len(t_refs)
+            and Counter((s, o) for s, o, _ in d_refs)
+            != Counter((s, o) for s, o, _ in t_refs)):
+        cnt = Counter(sd for sd, _, _ in d_refs)
+        for (sd, ad, _), (st, at, tt) in zip(d_refs, t_refs):
+            if (sd, ad) == (st, at):
+                continue
+            if cnt[sd] > 1 or (sd in mapping and mapping[sd] != (st, at, tt)):
+                return res  # mehrdeutig
+            mapping[sd] = (st, at, tt)
+
+    # --- jal-Callees (B1): falscher Funktionsaufruf -> Callee positionell
+    # umbenennen. NUR wenn das Callee-Multiset abweicht (echt andere Funktion);
+    # bei gleichem Multiset = bloss umsortiert = Scheduling -> nicht anfassen.
+    # Zwei-Phasen-Substitution loest Ketten/Swaps; verify-gegated.
+    call_map = {}
+    if (d_jals and len(d_jals) == len(t_jals)
+            and Counter(d_jals) != Counter(t_jals)):
+        jcnt = Counter(d_jals)
+        for cd, ct in zip(d_jals, t_jals):
+            if cd == ct:
+                continue
+            if jcnt[cd] > 1 or (cd in call_map and call_map[cd] != ct):
+                return res  # mehrdeutig
+            call_map[cd] = ct
+
+    if not mapping and not call_map:
+        return res
+
+    # Rewrite: Deklarationszeilen der betroffenen Symbole entfernen, dann je nach
+    # Verwendung umschreiben:
+    #   - Array  S_d[i]  (Ziel-Offset = k*Elementgroesse) -> S_t[(i) + k]
+    #   - Skalar S_d      -> (*(T*)((u8*)&S_t + A_t))
+    # externs fuer die Ziel-Symbole ergaenzen.
+    _ELEM = {"s8": 1, "u8": 1, "s16": 2, "u16": 2, "s32": 4, "f32": 4, "f64": 8}
+    fixed = c_code
+    involved = set(mapping) | {st for st, _, _ in mapping.values()}
+    for sym in involved:
+        fixed = re.sub(_DECL_LINE.format(sym=re.escape(sym)) + r"\n?", "", fixed, flags=re.M)
+
+    ext_kind = {}   # S_t -> ("array", tt) | ("scalar", None)
+    ph = {}
+    for i, (sd, (st, at, tt)) in enumerate(mapping.items()):
+        is_array = re.search(rf"\b{re.escape(sd)}\s*\[", fixed) is not None
+        if is_array:
+            elem = _ELEM.get(tt, 0)
+            if not elem or at % elem != 0:
+                return res  # Byte-Offset nicht index-darstellbar -> Fallback
+            k = at // elem
+
+            def _idx(m, st=st, k=k):
+                inner = m.group(1).strip()
+                return f"{st}[({inner}) + {k}]" if k else f"{st}[{inner}]"
+            fixed = re.sub(rf"\b{re.escape(sd)}\s*\[([^\]\[]*)\]", _idx, fixed)
+            ext_kind[st] = ("array", tt)
+        else:
+            expr = (f"(*({tt} *)((u8 *)&{st} + {hex(at)}))" if at
+                    else f"(*({tt} *)&{st})")
+            token = f"\x00SR{i}\x00"
+            ph[token] = expr
+            fixed = re.sub(rf"\b{re.escape(sd)}\b", token, fixed)
+            ext_kind.setdefault(st, ("scalar", None))
+
+    # jal-Callee-Renames (B1): Token -> Ziel-Funktionsname, ebenfalls zwei-phasig
+    # (verhindert Ketten-Substitution bei Swaps wie A->B, B->C).
+    for j, (cd, ct) in enumerate(call_map.items()):
+        token = f"\x00JR{j}\x00"
+        ph[token] = ct
+        fixed = re.sub(rf"\b{re.escape(cd)}\b", token, fixed)
+
+    for token, expr in ph.items():
+        fixed = fixed.replace(token, expr)
+
+    externs = ""
+    for st in sorted(ext_kind):
+        kind, tt = ext_kind[st]
+        externs += f"extern {tt} {st}[];\n" if kind == "array" else f"extern u8 {st};\n"
+    fixed = externs + fixed
+
+    vcomp = ido_compiler.compile_code(fixed, func_name)
+    if not vcomp.get("success"):
+        res["report"] = "Symbol-Repair: Rewrite kompiliert nicht."
+        return res
+    rank = ido_comparison.evaluate_match(func_name, fixed, vcomp["temp_o_path"],
+                                         target_s_path, update_leaderboard=False)
+    ido_compiler.cleanup_temp(vcomp["temp_dir"])
+    res.update({
+        "compiled": True, "best_c_code": fixed,
+        "match_rate": rank["match_rate"], "struct_score": rank["struct_score"],
+        "fixed": rank["match_rate"] >= 100.0 or bool(rank.get("permuter_finishable")),
+        "report": (f"Symbol-Repair: {len(mapping)} Daten-Ref + {len(call_map)} "
+                   f"Callee korrigiert -> match={rank['match_rate']}% "
+                   f"struct={rank['struct_score']}%"),
+    })
+    return res
+
+
+# =====================================================================
+# (C) EINZEL-KONSTANTEN-REPARATUR — streng & verify-gegated
+# =====================================================================
+# NUR der eindeutige Fall: Draft und Target sind instruktionsgleich BIS AUF
+# genau EINE Konstanten-Änderung (gleiche Mnemonic/Register/Reloc, nur eine
+# Zahl anders), UND dieser Wert kommt als eindeutiges Integer-Literal im C vor.
+# Dann den Wert aus der Target-.o einsetzen. Skalierte Offsets/Indizes (Immediate
+# != C-Literal) und Pointer-Typen haben keinen direkten Anker -> werden korrekt
+# uebersprungen. Kann nichts kaputt machen (verify-gegated gegen die Target-.o).
+
+_NUM_TOKEN = re.compile(r"-?\b0[xX][0-9a-fA-F]+\b|-?\b\d+\b")
+
+
+def _mask_nums(ops):
+    return _NUM_TOKEN.sub("#", ops)
+
+
+def _nums(ops):
+    return [int(t, 0) for t in _NUM_TOKEN.findall(ops)]
+
+
+def run_const_repair(c_code, func_name, target_s_path):
+    """Siehe Modul-Kommentar oben. Returns dict wie run_symbol_repair."""
+    res = {"compiled": False, "fixed": False, "best_c_code": c_code,
+           "match_rate": 0.0, "struct_score": 0.0, "report": ""}
+    comp = ido_compiler.compile_code(c_code, func_name)
+    if not comp.get("success"):
+        return res
+    tgt_o = ido_comparison._assemble_target_o(target_s_path)
+    if not tgt_o:
+        ido_compiler.cleanup_temp(comp["temp_dir"])
+        return res
+    di = ido_comparison._objdump_insns(comp["temp_o_path"])
+    ti = ido_comparison._objdump_insns(tgt_o)
+    ido_compiler.cleanup_temp(comp["temp_dir"])
+    if not di or len(di) != len(ti):
+        return res
+
+    pairs = set()
+    for a, b in zip(di, ti):
+        if a["hex"] == b["hex"]:
+            continue
+        # Nur reiner Immediate-Diff: gleiche Mnemonic + Reloc + identische
+        # Operanden-Struktur (Zahlen maskiert). Sonst -> struktureller Diff -> bail.
+        if (a["mnem"] != b["mnem"] or (a["reloc"] or "") != (b["reloc"] or "")
+                or _mask_nums(a["ops"]) != _mask_nums(b["ops"])):
+            return res
+        for vd, vt in zip(_nums(a["ops"]), _nums(b["ops"])):
+            if vd != vt:
+                pairs.add((vd, vt))
+    if len(pairs) != 1:
+        return res  # genau EINE Konstanten-Änderung
+
+    vd, vt = next(iter(pairs))
+    lits = [m for m in re.finditer(r"\b0[xX][0-9a-fA-F]+\b|\b\d+\b", c_code)
+            if int(m.group(0), 0) == vd]
+    if len(lits) != 1:
+        return res  # Wert nicht eindeutig als C-Literal -> Anker fehlt -> bail
+    m = lits[0]
+    repl = hex(vt) if m.group(0).lower().startswith("0x") else str(vt)
+    fixed = c_code[:m.start()] + repl + c_code[m.end():]
+
+    vcomp = ido_compiler.compile_code(fixed, func_name)
+    if not vcomp.get("success"):
+        return res
+    rank = ido_comparison.evaluate_match(func_name, fixed, vcomp["temp_o_path"],
+                                         target_s_path, update_leaderboard=False)
+    ido_compiler.cleanup_temp(vcomp["temp_dir"])
+    res.update({
+        "compiled": True, "best_c_code": fixed,
+        "match_rate": rank["match_rate"], "struct_score": rank["struct_score"],
+        "fixed": rank["match_rate"] >= 100.0,
+        "report": f"Const-Repair: {vd}->{vt} -> match={rank['match_rate']}% "
+                  f"struct={rank['struct_score']}%",
+    })
+    return res
+
+
+# =====================================================================
 # PHASES
 # =====================================================================
 
@@ -994,9 +1273,10 @@ def _run_beam(c_code, func_name, asm, target_skel, cache, similar_ref,
     passes = _all_passes(similar_ref)
     base = cache.get_score(c_code, func_name, target_skel, "baseline")
     if base < 0:
-        return -1.0, c_code
+        return -1.0, c_code, "baseline"
     beam = [(base, c_code)]
     best = (base, c_code)
+    best_label = "baseline"
     seen = {cache._hash(c_code)}
 
     for _ in range(max_rounds):
@@ -1019,9 +1299,9 @@ def _run_beam(c_code, func_name, asm, target_skel, cache, similar_ref,
                     candidates.append((vs, variant))
                     if vs > best[0]:
                         best = (vs, variant)
-                        log.debug(f"  Beam [{label}]: {vs:.1f}% (+{vs - sc:.1f})")
+                        best_label = label
                         if vs >= 100.0:
-                            return best
+                            return best[0], best[1], best_label
         # auf Top-K kuerzen (dedupliziert)
         candidates.sort(key=lambda x: x[0], reverse=True)
         new_beam = []
@@ -1040,7 +1320,7 @@ def _run_beam(c_code, func_name, asm, target_skel, cache, similar_ref,
         # expandieren, um 2-Schritt-Kombinationen zu finden.)
         if new_variants == 0:
             break
-    return best
+    return best[0], best[1], best_label
 
 
 def _run_greedy(c_code, func_name, asm, target_skel, cache, similar_ref, tested):
@@ -1048,8 +1328,9 @@ def _run_greedy(c_code, func_name, asm, target_skel, cache, similar_ref, tested)
     vorgeschaltete 'Phase 0: Similar' (Transplantat + referenz-informierte Passes)."""
     best_code = c_code
     best_score = cache.get_score(c_code, func_name, target_skel, "baseline")
+    best_label = "baseline"
     if best_score < 0:
-        return -1.0, c_code
+        return -1.0, c_code, best_label
 
     phases = list(PHASES)
     if similar_ref:
@@ -1073,15 +1354,15 @@ def _run_greedy(c_code, func_name, asm, target_skel, cache, similar_ref, tested)
                         tested.append((label, delta, "IMPROVED"))
                         best_score = score
                         best_code = variant
+                        best_label = label
                         improved = True
-                        log.debug(f"  Permuter [{label}]: {score:.1f}% (+{delta:.1f})")
                         if best_score >= 100.0:
-                            return best_score, best_code
+                            return best_score, best_code, best_label
                     elif score >= 0:
                         tested.append((label, delta, "NO HELP"))
                     else:
                         tested.append((label, 0, "COMPILE FAIL"))
-    return best_score, best_code
+    return best_score, best_code, best_label
 
 
 def run_permuter(c_code, func_name, target_s_path, similar_ref=None,
@@ -1101,22 +1382,40 @@ def run_permuter(c_code, func_name, target_s_path, similar_ref=None,
     tested = []
 
     if strategy == "beam":
-        best_score, best_code = _run_beam(
+        best_score, best_code, best_label = _run_beam(
             c_code, func_name, asm, target_skel, cache, similar_ref,
             tested, beam_width, beam_rounds)
     else:
-        best_score, best_code = _run_greedy(
+        best_score, best_code, best_label = _run_greedy(
             c_code, func_name, asm, target_skel, cache, similar_ref, tested)
 
     if best_score < 0:
         return {"best_c_code": c_code, "match_rate": 0.0, "report": ""}
+
+    # Deterministische Repairs auf dem Beam-Ergebnis: der Permuter hat die Struktur
+    # (Reg-Alloc/Scheduling) optimiert; jetzt verbleibende Symbol-/Konstanten-Fehler
+    # aus der Target-.o fixen. Verify-gegated -> nur ein echtes byte-100% wird
+    # uebernommen. Greift bei JEDEM run_permuter-Aufruf (initial + Fast-Lane). Die
+    # Repairs self-gaten billig (kein Mismatch -> sofort zurueck), daher kaum
+    # Overhead bei Funktionen ohne Symbol/Const-Fehler.
+    for _repair in (run_symbol_repair, run_const_repair):
+        try:
+            rr = _repair(best_code, func_name, target_s_path)
+        except Exception as e:
+            log.warning(f"[{func_name}] Repair-Fehler: {e}")
+            continue
+        if rr.get("match_rate", 0) >= 100.0:
+            log.info(f"[{func_name}] Permuter+Repair: byte-100% via {rr['report']}")
+            return {"best_c_code": rr["best_c_code"], "match_rate": 100.0,
+                    "report": _build_report(tested, cache.stats) + "\n  " + rr["report"]}
+
     if best_score >= 100.0:
         return {"best_c_code": best_code, "match_rate": 100.0,
                 "report": _build_report(tested, cache.stats)}
 
     report = _build_report(tested, cache.stats)
-    log.info(f"  Permuter[{strategy}]: {cache.stats['ido_calls']} IDO calls, "
-             f"{cache.stats['cache_hits']} cache, score {best_score:.1f}%"
+    log.info(f"[{func_name}] Permuter[{strategy}]: {cache.stats['ido_calls']} IDO calls, "
+             f"{cache.stats['cache_hits']} cache, score {best_score:.1f}% via {best_label}"
              f"{' (similar)' if similar_ref else ''}")
 
     return {"best_c_code": best_code, "match_rate": round(best_score, 2), "report": report}

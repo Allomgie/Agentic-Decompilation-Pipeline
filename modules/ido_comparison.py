@@ -46,6 +46,62 @@ _target_o_cache = {}
 _target_o_lock = threading.Lock()
 _target_o_dir = None
 
+# Festes Parent-Verzeichnis fuer alle Target-.o-Temp-Dirs. Jeder Prozess legt
+# darunter ein PID-benanntes Sub-Dir an (statt einem zufaelligen mkdtemp pro
+# Lauf, das sich akkumuliert). atexit raeumt das eigene Dir bei sauberem Exit;
+# der Sweep beim ersten Aufruf entfernt Dirs toter PIDs sowie alte
+# mkdtemp-Leichen — das deckt auch harte Kills (PC eingefroren/Reboot/OOM)
+# ab, bei denen atexit nie laeuft (vgl. /tmp-Disk-Fill-Sorge).
+_TARGET_O_PARENT = os.path.join(tempfile.gettempdir(), "ido_target_o")
+
+
+def _pid_alive(pid: int) -> bool:
+    """True, wenn ein Prozess mit dieser PID existiert (POSIX: kill(pid, 0))."""
+    try:
+        os.kill(pid, 0)
+    except ProcessLookupError:
+        return False
+    except PermissionError:
+        return True   # existiert, gehoert nur jmd. anderem
+    except OSError:
+        return False
+    return True
+
+
+def _sweep_stale_target_o_dirs():
+    """Entfernt verwaiste Target-.o-Temp-Dirs frueherer Laeufe.
+
+    - Neue, PID-benannte Sub-Dirs (ido_target_o/<pid>): weg, wenn PID tot.
+    - Alte mkdtemp-Leichen (TMP/ido_target_o_*): weg, wenn >1h alt
+      (Alterspuffer schuetzt ein evtl. noch laufendes Alt-Prozess-Dir)."""
+    import time
+    now = time.time()
+    # 1) Neue PID-Sub-Dirs unter dem festen Parent.
+    try:
+        for name in os.listdir(_TARGET_O_PARENT):
+            p = os.path.join(_TARGET_O_PARENT, name)
+            if not os.path.isdir(p):
+                continue
+            if name.isdigit() and _pid_alive(int(name)):
+                continue
+            shutil.rmtree(p, ignore_errors=True)
+    except OSError:
+        pass
+    # 2) Alte mkdtemp-Leichen direkt unter TMP (Vorgaenger-Code-Stand).
+    try:
+        tmp_root = tempfile.gettempdir()
+        for name in os.listdir(tmp_root):
+            if not name.startswith("ido_target_o_"):
+                continue
+            p = os.path.join(tmp_root, name)
+            try:
+                if os.path.isdir(p) and now - os.path.getmtime(p) > 3600:
+                    shutil.rmtree(p, ignore_errors=True)
+            except OSError:
+                pass
+    except OSError:
+        pass
+
 _INSN_LINE_RE = re.compile(r"\s*[0-9a-fA-F]+:\s+([0-9a-fA-F]{8})\s+\S+")
 _RELOC_LINE_RE = re.compile(r"\s*[0-9a-fA-F]+:\s+(R_MIPS_\S+)\s+(\S+)")
 
@@ -75,6 +131,142 @@ def _words_with_reloc(o_path: str) -> list:
     return [(h, r) for h, r in words]
 
 
+# --- Permuter-Finishable-Detektor -------------------------------------------
+# struct_matches ist der Bucket "der externe Permuter kriegt das problemlos auf
+# 100%". Der Permuter kann Register-Allokation und Instruktions-Reihenfolge
+# (Scheduling) umstellen, aber KEINE Symbole/Konstanten/Offsets erfinden.
+# Kriterium: gleiche Instruktionszahl UND identisches Multiset register-
+# invarianter Signaturen (Mnemonic + numerische Immediates + Reloc-Symbol).
+# Register-Operanden ($..) werden ignoriert (Reg-Alloc), Multiset erlaubt
+# Umordnung (Scheduling). Abweichende Konstante/Offset/Symbol -> Signatur
+# weicht ab -> NICHT finishable.
+_INSN_FULL_RE = re.compile(r"\s*[0-9a-fA-F]+:\s+([0-9a-fA-F]{8})\s+(\S+)\s*(.*)")
+
+# Frei-allozierbare Register = NUR Temp/Saved/Float (t*, s*, f*). Abgeleitet aus
+# decomp-permuter/src/objdump.py MIPS_SETTINGS.re_reg, aber BEWUSST RESTRIKTIVER:
+# Die Scorer-re_reg fasst a0-a3/v0-v1/at/k/ra/fp als "Register" (für ihren
+# Heuristik-Gradienten). Für unsere GARANTIE (struct_matches = Permuter schließt
+# sicher) zählt das nicht — diese Register sind SEMANTISCH belegt:
+#   a0-a3 = Argument-Position eines Calls (Quellcode-Unterschied, der Permuter
+#           ordnet keine Call-Argumente um -> NIE per Reg-Alloc lösbar),
+#   v0-v1 = Return-/Eval-Wert, at = Assembler-Temp, k0/1 = Kernel, ra = Return-Addr,
+#   $zero/$sp/fp = Konstante 0 / Stack-/Frame-Pointer.
+# Ein Unterschied in diesen MUSS exakt matchen, sonst NICHT finishable.
+# (Belegt empirisch: Argument-Register-Diffs landeten als False Positives in
+# struct_matches und blieben beim Permuter bei Score 5/10 hängen.)
+_FREE_REG_RE = re.compile(r"\$?\b(t[0-9]|s[0-8]|f[12]?[0-9]|f3[01])\b")
+# objdump-Kommentar wie "<func_800B5054+0x60>" (Rauschen, raus vor dem Vergleich).
+_COMMENT_RE = re.compile(r"<[^>]*>")
+
+
+def _mask_ops(ops: str) -> str:
+    """Operanden-String register-invariant machen: Kommentar entfernen, dann nur
+    die FREI allozierbaren Register (t*/s*/f*) durch <reg> ersetzen. Alles andere
+    (Immediates, Symbole, Basis-Struktur, Argument-/Return-/Spezial-Register) MUSS
+    für eine garantiert permuter-lösbare reine Reg-Alloc gleich bleiben."""
+    return _FREE_REG_RE.sub("<reg>", _COMMENT_RE.sub("", ops)).strip()
+
+
+def _objdump_insns(o_path: str) -> list:
+    """list[dict(hex, mnem, ops, reloc)] via objdump -dr; trailing-Padding (nops)
+    gestrippt."""
+    if not o_path or not os.path.exists(o_path):
+        return []
+    try:
+        res = subprocess.run([OBJDUMP, "-dr", "-z", o_path],
+                             capture_output=True, text=True, timeout=10)
+    except (subprocess.TimeoutExpired, FileNotFoundError, OSError):
+        return []
+    out = []
+    for line in res.stdout.splitlines():
+        m = _INSN_FULL_RE.match(line)
+        if m:
+            out.append({"hex": m.group(1).lower(), "mnem": m.group(2).lower(),
+                        "ops": m.group(3).strip(), "reloc": None})
+            continue
+        rm = _RELOC_LINE_RE.match(line)
+        if rm and out:
+            out[-1]["reloc"] = f"{rm.group(1)} {rm.group(2)}"
+    while out and out[-1]["hex"] == "00000000":
+        out.pop()
+    return out
+
+
+def _finishable_words(dw: list, tw: list) -> bool:
+    """Kern-Kriterium: REINE Register-Allokation. Gleiche Laenge, an JEDER
+    Position gleiche Mnemonic + gleiches Reloc-Symbol/Typ, und die Operanden
+    sind nach Register-Maskierung (_mask_ops) IDENTISCH — nur echte GP/FP-Register
+    duerfen abweichen. Damit zaehlen Immediate-, Symbol-, Offset- UND
+    $zero/$sp/Basis-Register-Unterschiede als NICHT finishable (anders als die
+    fruehere reine Immediate-Multiset-Pruefung, die solche Operanden faelschlich
+    als 'Register' durchgehen liess). KEINE Umordnung erlaubt (positionell) — die
+    kann den Datenfluss aendern und ist nicht garantiert permuter-loesbar. So
+    bleibt struct_matches garantiert sauber = was der externe Permuter sicher
+    auf 100% bringt."""
+    if not dw or not tw or len(dw) != len(tw):
+        return False
+    for a, b in zip(dw, tw):
+        if a["mnem"] != b["mnem"]:
+            return False
+        if (a["reloc"] or "") != (b["reloc"] or ""):
+            return False
+        if _mask_ops(a["ops"]) != _mask_ops(b["ops"]):
+            return False
+    return True
+
+
+def permuter_finishable(draft_o_path: str, target_o_path: str) -> bool:
+    """True, wenn Draft und Target sich NUR in der Register-Allokation
+    unterscheiden (positionell gleiche Instruktionen, nur andere Register) —
+    GARANTIERT vom externen Permuter loesbar. Umordnung/Scheduling, andere
+    Symbole/Konstanten/Offsets oder ein anderer Instruktionssatz -> False
+    (nicht sicher loesbar -> gehoeren nicht in struct_matches)."""
+    return _finishable_words(_objdump_insns(draft_o_path),
+                             _objdump_insns(target_o_path))
+
+
+# Codegen-aequivalente Arithmetik: Strength-Reduction +/- (x*K -> shift-add vs shift-sub). IDO-intern,
+# KEIN C-Operator-Swap (verifiziert), aber decomp-permuter loest es ueber Reorder/Temp-Vars (Quelle:
+# Decomp_Infosheet Regalloc/Reorder-Checkliste). HEURISTISCH permuter-loesbar (anders als die garantierte
+# reine Reg-Alloc oben) -- bewusst gewaehlt fuer die op-Codegen-Klasse.
+# Codegen-aequivalente Mnemonic-Gruppen (an sonst register-maskiert-identischen Positionen):
+#  - addu<->subu / add<->sub: Strength-Reduction-Arithmetik (IDO kanonisiert, C-aequivalent).
+#  - lw<->lwc1 / sw<->swc1: GPR-vs-FPU-Register-KLASSE bei WORT-Load/Store an IDENTISCHER Adresse. IDO
+#    nutzt FPU-Register als memcpy-Scratch fuer 32-Bit-Wort-Kopien unter Registerdruck (siehe
+#    memory/hybrid_op_width_calibration.md, f32-stack Neu-Charakterisierung). _mask_ops maskiert $f* wie
+#    t*/s* -> nach Maskierung unterscheiden sich lw/lwc1 nur in der Mnemonic. CAVEAT: ob der externe
+#    Permuter GPR<->FPU tatsaechlich loest, ist empirisch offen (Registerdruck-Pfad) -- bewusste Routing-
+#    Wette (Lukas), wie die uebrige permuter_finishable_codegen-Heuristik.
+_CODEGEN_EQUIV = ({"addu", "subu"}, {"add", "sub"}, {"lw", "lwc1"}, {"sw", "swc1"})
+
+
+def _finishable_with_codegen(dw: list, tw: list) -> bool:
+    """Wie _finishable_words (gleiche Laenge; Reloc + register-maskierte Operanden MUESSEN an JEDER
+    Position matchen -> Immediates/Symbole/Offsets/Argument-Register exakt, nur t*/s*/f* duerfen abweichen),
+    ERLAUBT aber eine Mnemonic-Abweichung NUR wenn beide in DERSELBEN Codegen-aequivalenten Arithmetik-
+    Gruppe sind (addu<->subu, add<->sub). Damit zaehlt ein anderer Operand/Konstante/Offset/Symbol weiter
+    als NICHT-Permuter (der externe Permuter kann sowas nicht aendern)."""
+    if not dw or not tw or len(dw) != len(tw):
+        return False
+    for a, b in zip(dw, tw):
+        if (a["reloc"] or "") != (b["reloc"] or ""):
+            return False
+        if _mask_ops(a["ops"]) != _mask_ops(b["ops"]):     # immediates/symbole/offsets/arg-regs exakt
+            return False
+        if a["mnem"] != b["mnem"]:
+            if not any(a["mnem"] in g and b["mnem"] in g for g in _CODEGEN_EQUIV):
+                return False                                # andere Mnemonic, KEIN Codegen-Paar -> nicht permuter
+    return True
+
+
+def permuter_finishable_codegen(draft_o_path: str, target_o_path: str) -> bool:
+    """Wie permuter_finishable, ABER erlaubt zusaetzlich die op-Codegen-Substitution (addu<->subu) an
+    sonst register-identischen Positionen. HEURISTISCH (nicht garantiert wie die reine Reg-Alloc), aber
+    SICHER gegen Konstanten-/Symbol-/Offset-/Argument-Register-/Laengen-Diffs, die den Permuter hindern."""
+    return _finishable_with_codegen(_objdump_insns(draft_o_path),
+                                    _objdump_insns(target_o_path))
+
+
 def _assemble_target_o(target_s_path: str):
     """Assembliert die Target-.s (mit prelude.inc) zu einer unrelocierten .o.
     Ergebnis wird pro Pfad gecacht. Returns .o-Pfad oder None bei Fehler
@@ -89,7 +281,12 @@ def _assemble_target_o(target_s_path: str):
         if key in _target_o_cache:
             return _target_o_cache[key]
         if _target_o_dir is None:
-            _target_o_dir = tempfile.mkdtemp(prefix="ido_target_o_")
+            # Verwaiste Dirs frueherer (auch hart gekillter) Laeufe wegraeumen,
+            # dann ein festes, PID-benanntes Dir fuer diesen Prozess anlegen.
+            os.makedirs(_TARGET_O_PARENT, exist_ok=True)
+            _sweep_stale_target_o_dirs()
+            _target_o_dir = os.path.join(_TARGET_O_PARENT, str(os.getpid()))
+            os.makedirs(_target_o_dir, exist_ok=True)
             atexit.register(shutil.rmtree, _target_o_dir, ignore_errors=True)
 
     # 2) Assemblierung OHNE globalen Lock -> verschiedene Targets blockieren
@@ -443,6 +640,7 @@ def evaluate_match(
             "match_rate": 0.0,
             "mismatch_count": max(len(draft_hex), len(target_hex)),
             "is_permuter_ready": False,
+            "permuter_finishable": False,
             "struct_score": 0.0,
             "struct_score_raw": 0.0,
             "frame_stripped": False,
@@ -455,6 +653,9 @@ def evaluate_match(
     # Symbol+Typ. Faellt auf den alten .s-ROM-Hex-Vergleich zurueck, falls die
     # Assemblierung nicht moeglich ist (dann Naeherung: Relocs zaehlen als Diff).
     target_o = _assemble_target_o(target_s_path)
+    # Permuter-Finishable: nur Reg-Alloc/Scheduling-Diffs -> externer Permuter
+    # kann das problemlos schliessen. Braucht die assemblierte Target-.o.
+    is_finishable = bool(target_o) and permuter_finishable(draft_o_path, target_o)
     if target_o:
         d_words = _words_with_reloc(draft_o_path)
         t_words = _words_with_reloc(target_o)
@@ -498,7 +699,7 @@ def evaluate_match(
     else:
         draft_skeleton = build_skeleton(draft_words)
         target_skeleton = build_skeleton(target_words)
-    struct_score = SequenceMatcher(None, target_skeleton, draft_skeleton).ratio() * 100.0
+    struct_score = SequenceMatcher(None, target_skeleton, draft_skeleton, autojunk=False).ratio() * 100.0  # autojunk=False: bei >=200 Worten sonst verfaelscht (s. diff_generator-Bug 2026-06-20)
 
     # Frame-Stripping fuer Mid-Function-Split-Bloecke: ein standalone-kompilierter
     # Draft traegt einen Prolog/Epilog, den ein Block aus der Funktionsmitte nicht
@@ -518,7 +719,7 @@ def evaluate_match(
         stripped_draft, n_pro, n_epi = strip_frame_skeleton(draft_skeleton)
         stripped_target, _, _ = strip_frame_skeleton(target_skeleton)
         struct_score = SequenceMatcher(
-            None, stripped_target, stripped_draft).ratio() * 100.0
+            None, stripped_target, stripped_draft, autojunk=False).ratio() * 100.0
 
     # Mismatch-Zaehlung
     mismatch_count = max_len - exact_matches
@@ -561,4 +762,5 @@ def evaluate_match(
         "mismatch_count": mismatch_count,
         "is_permuter_ready": is_permuter_fast_lane,
         "is_permuter_available": is_permuter_available,
+        "permuter_finishable": is_finishable,
     }

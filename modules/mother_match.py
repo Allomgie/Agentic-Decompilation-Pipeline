@@ -329,7 +329,7 @@ def arm_diff_json(arm_result, focus="all", max_entries=8):
                "diff": len(our) - len(tgt)}
     t_ops = [i["opcode"] for i in tgt]
     d_ops = [i["opcode"] for i in our]
-    sm = SequenceMatcher(None, t_ops, d_ops)
+    sm = SequenceMatcher(None, t_ops, d_ops, autojunk=False)  # autojunk=False: >=200 Opcodes sonst verfaelscht (s. diff_generator-Bug 2026-06-20)
     entries = []
     for tag, i1, i2, j1, j2 in sm.get_opcodes():
         if tag == "equal":
